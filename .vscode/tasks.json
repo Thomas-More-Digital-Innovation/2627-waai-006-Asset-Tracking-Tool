@@ -11,13 +11,14 @@
     {
       "label": "Backend: dev",
       "type": "shell",
-      "command": ".venv/bin/uvicorn app.main:app --reload --port 8000",
+      "command": ".venv/bin/uvicorn app.main:app --reload --port 8000 --env-file ../.env",
       "windows": {
-        "command": ".venv\\Scripts\\uvicorn app.main:app --reload --port 8000"
+        "command": ".venv\\Scripts\\uvicorn app.main:app --reload --port 8000 --env-file ..\\.env"
       },
       "options": { "cwd": "${workspaceFolder}/code/backend" },
       "isBackground": true,
       "presentation": { "group": "dev" },
+      "dependsOn": ["Database: start"],
       "problemMatcher": []
     },
     {
@@ -26,6 +27,14 @@
       "command": "npm run dev",
       "options": { "cwd": "${workspaceFolder}/code/frontend" },
       "isBackground": true,
+      "presentation": { "group": "dev" },
+      "problemMatcher": []
+    },
+    {
+      "label": "Database: start",
+      "type": "shell",
+      "command": "docker compose up -d --wait db",
+      "options": { "cwd": "${workspaceFolder}/code" },
       "presentation": { "group": "dev" },
       "problemMatcher": []
     },
