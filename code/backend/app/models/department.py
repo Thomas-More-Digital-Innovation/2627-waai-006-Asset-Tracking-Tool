@@ -9,5 +9,6 @@ class Department(Base):
 
     department_id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(255))
+    mail: Mapped[str] = mapped_column(String(255))
 
     reservations: Mapped[list["Reservation"]] = relationship(back_populates="department")
