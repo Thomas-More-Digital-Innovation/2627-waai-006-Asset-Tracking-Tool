@@ -4,11 +4,13 @@ from fastapi import FastAPI
 
 from .database import engine
 from .models import Base
+from .seeders import run_seeders
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     Base.metadata.create_all(engine)
+    run_seeders()
     yield
 
 
