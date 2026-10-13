@@ -20,6 +20,12 @@ function Dropdown({ label, options, placeholder, id, className = '', ...props }:
     <div className="flex flex-col gap-1.5">
       <label className="text-sm font-medium text-gray-700" htmlFor={selectId}>
         {label}
+        {props.required && (
+          <span className="text-red-600" aria-hidden="true">
+            {' '}
+            *
+          </span>
+        )}
       </label>
       <div className="relative">
         <select

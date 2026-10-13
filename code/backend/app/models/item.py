@@ -1,4 +1,4 @@
-from sqlalchemy import ForeignKey, String, Text
+from sqlalchemy import ForeignKey, String, Text, true
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .base import Base
@@ -8,11 +8,12 @@ class Item(Base):
     __tablename__ = "items"
 
     item_id: Mapped[int] = mapped_column(primary_key=True)
-    name: Mapped[str] = mapped_column(String(255))
-    photo: Mapped[str | None] = mapped_column(String(255))
-    detail: Mapped[str | None] = mapped_column(Text)
-    count: Mapped[int]
-    category_id: Mapped[int] = mapped_column(ForeignKey("categories.category_id"))
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    photo: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    detail: Mapped[str | None] = mapped_column(Text, nullable=True)
+    count: Mapped[int] = mapped_column(nullable=False)
+    category_id: Mapped[int] = mapped_column(ForeignKey("categories.category_id"), nullable=False)
+    is_active: Mapped[bool] = mapped_column(default=True, server_default=true(), nullable=False)
 
     category: Mapped["Category"] = relationship(back_populates="items")
     reservation_items: Mapped[list["ReservationItem"]] = relationship(back_populates="item")

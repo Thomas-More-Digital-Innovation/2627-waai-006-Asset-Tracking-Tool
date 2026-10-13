@@ -10,13 +10,13 @@ class Reservation(Base):
     __tablename__ = "reservations"
 
     reservation_id: Mapped[int] = mapped_column(primary_key=True)
-    department_id: Mapped[int | None] = mapped_column(ForeignKey("departments.department_id"))
-    date_time: Mapped[datetime]
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.user_id"))
-    start_time: Mapped[time]
-    end_time: Mapped[time]
-    start_date: Mapped[date]
-    end_date: Mapped[date]
+    department_id: Mapped[int | None] = mapped_column(ForeignKey("departments.department_id"), nullable=True)
+    date_time: Mapped[datetime] = mapped_column(nullable=False)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.user_id"), nullable=False)
+    start_time: Mapped[time] = mapped_column(nullable=False)
+    end_time: Mapped[time] = mapped_column(nullable=False)
+    start_date: Mapped[date] = mapped_column(nullable=False)
+    end_date: Mapped[date] = mapped_column(nullable=False)
 
     department: Mapped["Department | None"] = relationship(back_populates="reservations")
     user: Mapped["User"] = relationship(back_populates="reservations")

@@ -1,13 +1,19 @@
-import { Pencil, Plus, RotateCcw, Trash2 } from 'lucide-react'
+import { Image as ImageIcon, Pencil, Plus, RotateCcw, Trash2 } from 'lucide-react'
 import { useEffect, useState, type FormEvent } from 'react'
 import Button from '../../components/ui/Button.tsx'
+import Dropdown, { type DropdownOption } from '../../components/ui/Dropdown.tsx'
 import FormMessage from '../../components/ui/FormMessage.tsx'
+import ImageInput from '../../components/ui/ImageInput.tsx'
 import Input from '../../components/ui/Input.tsx'
 import Modal from '../../components/ui/Modal.tsx'
 import SearchBar from '../../components/ui/SearchBar.tsx'
 import Toggle from '../../components/ui/Toggle.tsx'
+import { PartialSaveError } from './PartialSaveError.ts'
 
-export type DataValues = Record<string, string | boolean>
+// An image field holds the address of the stored image, or the chosen file when saving
+export type DataValues = Record<string, string | boolean | File>
+
+const MAX_IMAGE_BYTES = 10 * 1024 * 1024
 
 export type DataRow = {
   id: number
@@ -21,9 +27,14 @@ export type DataRow = {
 export type DataField = {
   name: string
   label: string
-  // "checkbox" shows a toggle and stores true or false, the other types are text inputs
-  type?: 'text' | 'email' | 'password' | 'checkbox'
+  // "checkbox" shows a toggle and stores true or false, "select" shows a dropdown,
+  // "image" shows a file picker, the other types are text inputs
+  type?: 'text' | 'email' | 'password' | 'number' | 'checkbox' | 'select' | 'image'
   minLength?: number
+  // Loads the choices of a "select" field
+  loadOptions?: () => Promise<DropdownOption[]>
+  // The field may stay empty
+  optional?: boolean
   // Leaves the field out of the table, for example for a password
   hideInTable?: boolean
   // The field is required when adding, but may stay empty when editing
@@ -42,11 +53,15 @@ type DataManagerProps = {
 }
 
 // Turns a stored value into the text shown in the table
-function displayValue(value: string | boolean | undefined): string {
+function displayValue(value: DataValues[string] | undefined, options?: DropdownOption[]): string {
   if (typeof value === 'boolean') {
     return value ? 'Ja' : 'Nee'
   }
-  return value ?? ''
+  if (value instanceof File) {
+    return ''
+  }
+  // A select field stores the value of the chosen option, the table shows its label
+  return options?.find((option) => option.value === value)?.label ?? value ?? ''
 }
 
 const iconButtonClasses =
@@ -59,6 +74,8 @@ function DataManager({ title, fields, load, create, update, remove, restore }: D
   const [deleting, setDeleting] = useState<DataRow | null>(null)
   const [error, setError] = useState('')
   const [search, setSearch] = useState('')
+  // The choices of every select field, by field name
+  const [options, setOptions] = useState<Record<string, DropdownOption[]>>({})
 
   // Loads the rows once, when the component first appears
   useEffect(() => {
@@ -66,6 +83,16 @@ function DataManager({ title, fields, load, create, update, remove, restore }: D
       .then(setRows)
       .catch(() => setError('De gegevens konden niet geladen worden.'))
   }, [load])
+
+  // Loads the choices of the select fields once
+  useEffect(() => {
+    for (const field of fields) {
+      field
+        .loadOptions?.()
+        .then((loaded) => setOptions((current) => ({ ...current, [field.name]: loaded })))
+        .catch(() => setError('De keuzes konden niet geladen worden.'))
+    }
+  }, [fields])
 
   function closeModals() {
     setEditing(null)
@@ -80,6 +107,11 @@ function DataManager({ title, fields, load, create, update, remove, restore }: D
       setRows(await load())
       closeModals()
     } catch (caught) {
+      if (caught instanceof PartialSaveError) {
+        // The row was saved, so the form closes and only the warning stays visible
+        setRows(await load())
+        closeModals()
+      }
       setError(caught instanceof Error ? caught.message : 'Er ging iets mis.')
     }
   }
@@ -93,6 +125,17 @@ function DataManager({ title, fields, load, create, update, remove, restore }: D
       const value = form.get(field.name)
       if (field.type === 'checkbox') {
         values[field.name] = value !== null
+      } else if (field.type === 'image') {
+        // A chosen file is uploaded, an empty text removes the image, nothing leaves it as it is
+        if (value instanceof File && value.size > MAX_IMAGE_BYTES) {
+          setError('De afbeelding is te groot (maximaal 10 MB).')
+          return
+        }
+        if (value instanceof File && value.size > 0) {
+          values[field.name] = value
+        } else if (form.get(`${field.name}_removed`) !== null) {
+          values[field.name] = ''
+        }
       } else {
         values[field.name] = field.type === 'password' ? String(value) : String(value).trim()
       }
@@ -107,8 +150,11 @@ function DataManager({ title, fields, load, create, update, remove, restore }: D
   // Keeps the rows where at least one field contains the search text
   const searchText = search.trim().toLowerCase()
   const tableFields = fields.filter((field) => !field.hideInTable)
+  const searchFields = tableFields.filter((field) => field.type !== 'image')
   const visibleRows = rows.filter((row) =>
-    tableFields.some((field) => displayValue(row.values[field.name]).toLowerCase().includes(searchText)),
+    searchFields.some((field) =>
+      displayValue(row.values[field.name], options[field.name]).toLowerCase().includes(searchText),
+    ),
   )
 
   return (
@@ -135,7 +181,7 @@ function DataManager({ title, fields, load, create, update, remove, restore }: D
 
       {visibleRows.length === 0 ? (
         <p className="px-6 py-8 text-center text-gray-600">
-          {rows.length === 0 ? 'Nog geen gegevens.' : 'Geen resultaten gevonden'}
+          {rows.length === 0 ? 'Nog geen gegevens' : 'Geen resultaten gevonden'}
         </p>
       ) : (
         <div className="overflow-x-auto">
@@ -156,7 +202,19 @@ function DataManager({ title, fields, load, create, update, remove, restore }: D
                 <tr className={`h-14 ${row.isActive === false ? 'text-gray-400' : ''}`} key={row.id}>
                   {tableFields.map((field) => (
                     <td className="px-4 py-2 sm:px-6" key={field.name}>
-                      {displayValue(row.values[field.name])}
+                      {field.type !== 'image' ? (
+                        displayValue(row.values[field.name], options[field.name])
+                      ) : row.values[field.name] ? (
+                        <img
+                          className="size-10 rounded-md border border-gray-200 object-cover"
+                          src={String(row.values[field.name])}
+                          alt=""
+                        />
+                      ) : (
+                        <div className="flex size-10 items-center justify-center rounded-md border border-dashed border-gray-300 text-gray-400">
+                          <ImageIcon className="size-4" aria-hidden="true" />
+                        </div>
+                      )}
                     </td>
                   ))}
                   {restore && (
@@ -215,10 +273,33 @@ function DataManager({ title, fields, load, create, update, remove, restore }: D
           <form className="flex flex-col gap-5" onSubmit={handleSubmit}>
             {fields.map((field) => {
               const value = editing === 'new' ? undefined : editing.values[field.name]
-              const isOptional = field.optionalOnEdit && editing !== 'new'
+              const isOptional = field.optional || (field.optionalOnEdit && editing !== 'new')
 
               if (field.type === 'checkbox') {
                 return <Toggle key={field.name} label={field.label} name={field.name} defaultChecked={value === true} />
+              }
+              if (field.type === 'image') {
+                return (
+                  <ImageInput
+                    key={field.name}
+                    label={field.label}
+                    name={field.name}
+                    currentUrl={typeof value === 'string' ? value : ''}
+                  />
+                )
+              }
+              if (field.type === 'select') {
+                return (
+                  <Dropdown
+                    key={field.name}
+                    label={field.label}
+                    name={field.name}
+                    options={options[field.name] ?? []}
+                    placeholder="Maak een keuze"
+                    defaultValue={typeof value === 'string' ? value : ''}
+                    required={!isOptional}
+                  />
+                )
               }
               return (
                 <Input
@@ -227,7 +308,8 @@ function DataManager({ title, fields, load, create, update, remove, restore }: D
                   name={field.name}
                   type={field.type ?? 'text'}
                   defaultValue={typeof value === 'string' ? value : ''}
-                  placeholder={isOptional ? 'Leeg laten om niet te wijzigen' : undefined}
+                  placeholder={field.optionalOnEdit && isOptional ? 'Leeg laten om niet te wijzigen' : undefined}
+                  min={field.type === 'number' ? 0 : undefined}
                   minLength={field.minLength}
                   maxLength={255}
                   required={!isOptional}

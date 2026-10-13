@@ -8,7 +8,7 @@ class ItemProblem(Base):
     __tablename__ = "item_problems"
 
     item_problem_id: Mapped[int] = mapped_column(primary_key=True)
-    item_id: Mapped[int] = mapped_column(ForeignKey("items.item_id"))
-    note: Mapped[str] = mapped_column(Text)
+    item_id: Mapped[int] = mapped_column(ForeignKey("items.item_id"), nullable=False)
+    note: Mapped[str] = mapped_column(Text, nullable=False)
 
     item: Mapped["Item"] = relationship(back_populates="problems")

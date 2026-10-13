@@ -1,29 +1,44 @@
 import { useState } from 'react'
 import Dropdown from '../../components/ui/Dropdown.tsx'
 import {
+  activateItem,
   activateUser,
   createCategory,
   createDepartment,
+  createItem,
   createUser,
   deleteCategory,
   deleteDepartment,
+  deleteItem,
   deleteUser,
   fetchCategories,
+  fetchCategoryOptions,
   fetchDepartments,
+  fetchItems,
   fetchUsers,
   updateCategory,
   updateDepartment,
+  updateItem,
   updateUser,
 } from './api.ts'
 import DataManager, { type DataField } from './DataManager.tsx'
 
 const manageOptions = [
+  { value: 'item', label: 'Materiaal' },
   { value: 'category', label: 'Categorieën' },
   { value: 'department', label: 'Afdelingen' },
   { value: 'user', label: 'Gebruikers' },
 ]
 
 const categoryFields: DataField[] = [{ name: 'name', label: 'Naam' }]
+
+const itemFields: DataField[] = [
+  { name: 'photo', label: 'Foto', type: 'image' },
+  { name: 'name', label: 'Naam' },
+  { name: 'category_id', label: 'Categorie', type: 'select', loadOptions: fetchCategoryOptions },
+  { name: 'count', label: 'Aantal', type: 'number' },
+  { name: 'detail', label: 'Omschrijving', optional: true, hideInTable: true },
+]
 
 const departmentFields: DataField[] = [
   { name: 'name', label: 'Naam' },
@@ -56,6 +71,18 @@ function ManagePage() {
           onChange={(event) => setSelected(event.target.value)}
         />
       </div>
+
+      {selected === 'item' && (
+        <DataManager
+          title="Materiaal"
+          fields={itemFields}
+          load={fetchItems}
+          create={createItem}
+          update={updateItem}
+          remove={deleteItem}
+          restore={activateItem}
+        />
+      )}
 
       {selected === 'category' && (
         <DataManager
