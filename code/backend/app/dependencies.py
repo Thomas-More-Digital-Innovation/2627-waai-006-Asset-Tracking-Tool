@@ -22,3 +22,9 @@ def get_current_user(
 
 
 CurrentUser = Annotated[User, Depends(get_current_user)]
+
+
+def get_admin_user(current_user: CurrentUser) -> User:
+    if not current_user.is_admin:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Alleen voor beheerders")
+    return current_user

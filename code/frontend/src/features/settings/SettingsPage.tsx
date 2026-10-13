@@ -1,23 +1,13 @@
 import { useState, type FormEvent } from 'react'
 import Button from '../../components/ui/Button.tsx'
+import FormMessage, { type Message } from '../../components/ui/FormMessage.tsx'
 import Input from '../../components/ui/Input.tsx'
 import { changePassword, updateProfile, type User } from '../auth/api.ts'
-
-type Message = {
-  text: string
-  isError: boolean
-}
+import SummerTimeForm from './SummerTimeForm.tsx'
 
 type SettingsPageProps = {
   user: User
   onUserChange: (user: User) => void
-}
-
-function FormMessage({ message }: { message: Message | null }) {
-  if (!message) {
-    return null
-  }
-  return <p className={`text-sm ${message.isError ? 'text-red-700' : 'text-green-700'}`}>{message.text}</p>
 }
 
 function ProfileForm({ user, onUserChange }: SettingsPageProps) {
@@ -101,6 +91,7 @@ function SettingsPage({ user, onUserChange }: SettingsPageProps) {
       <h1 className="text-2xl font-semibold">Instellingen</h1>
       <ProfileForm user={user} onUserChange={onUserChange} />
       <PasswordForm />
+      {user.is_admin && <SummerTimeForm />}
     </div>
   )
 }
