@@ -51,7 +51,12 @@ class PasswordChange(BaseModel):
 @router.post("/login", response_model=UserResponse)
 def login(credentials: LoginRequest, response: Response, db: DbSession):
     user = db.scalars(select(User).where(User.email == credentials.email.strip().lower())).first()
-    if user is None or user.password is None or not verify_password(credentials.password, user.password):
+    if (
+        user is None
+        or not user.is_active
+        or user.password is None
+        or not verify_password(credentials.password, user.password)
+    ):
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "E-mailadres of wachtwoord is onjuist")
 
     response.set_cookie(

@@ -1,22 +1,33 @@
-import { Pencil, Plus, Trash2 } from 'lucide-react'
+import { Pencil, Plus, RotateCcw, Trash2 } from 'lucide-react'
 import { useEffect, useState, type FormEvent } from 'react'
 import Button from '../../components/ui/Button.tsx'
 import FormMessage from '../../components/ui/FormMessage.tsx'
 import Input from '../../components/ui/Input.tsx'
 import Modal from '../../components/ui/Modal.tsx'
 import SearchBar from '../../components/ui/SearchBar.tsx'
+import Toggle from '../../components/ui/Toggle.tsx'
 
-export type DataValues = Record<string, string>
+export type DataValues = Record<string, string | boolean>
 
 export type DataRow = {
   id: number
   values: DataValues
+  // Only set for data that can be made inactive instead of being removed
+  isActive?: boolean
+  // A locked row has no action buttons, for example the user's own account
+  isLocked?: boolean
 }
 
 export type DataField = {
   name: string
   label: string
-  type?: string
+  // "checkbox" shows a toggle and stores true or false, the other types are text inputs
+  type?: 'text' | 'email' | 'password' | 'checkbox'
+  minLength?: number
+  // Leaves the field out of the table, for example for a password
+  hideInTable?: boolean
+  // The field is required when adding, but may stay empty when editing
+  optionalOnEdit?: boolean
 }
 
 type DataManagerProps = {
@@ -26,12 +37,22 @@ type DataManagerProps = {
   create: (values: DataValues) => Promise<void>
   update: (id: number, values: DataValues) => Promise<void>
   remove: (id: number) => Promise<void>
+  // When given, inactive rows are shown with a button to make them active again
+  restore?: (id: number) => Promise<void>
+}
+
+// Turns a stored value into the text shown in the table
+function displayValue(value: string | boolean | undefined): string {
+  if (typeof value === 'boolean') {
+    return value ? 'Ja' : 'Nee'
+  }
+  return value ?? ''
 }
 
 const iconButtonClasses =
   'flex size-10 cursor-pointer items-center justify-center rounded-md text-gray-600 transition-colors hover:bg-gray-100'
 
-function DataManager({ title, fields, load, create, update, remove }: DataManagerProps) {
+function DataManager({ title, fields, load, create, update, remove, restore }: DataManagerProps) {
   const [rows, setRows] = useState<DataRow[]>([])
   // "new" means the add form is open, a row means that row is being edited
   const [editing, setEditing] = useState<DataRow | 'new' | null>(null)
@@ -69,7 +90,12 @@ function DataManager({ title, fields, load, create, update, remove }: DataManage
     const form = new FormData(event.currentTarget)
     const values: DataValues = {}
     for (const field of fields) {
-      values[field.name] = String(form.get(field.name)).trim()
+      const value = form.get(field.name)
+      if (field.type === 'checkbox') {
+        values[field.name] = value !== null
+      } else {
+        values[field.name] = field.type === 'password' ? String(value) : String(value).trim()
+      }
     }
 
     const row = editing
@@ -80,8 +106,9 @@ function DataManager({ title, fields, load, create, update, remove }: DataManage
 
   // Keeps the rows where at least one field contains the search text
   const searchText = search.trim().toLowerCase()
+  const tableFields = fields.filter((field) => !field.hideInTable)
   const visibleRows = rows.filter((row) =>
-    fields.some((field) => row.values[field.name].toLowerCase().includes(searchText)),
+    tableFields.some((field) => displayValue(row.values[field.name]).toLowerCase().includes(searchText)),
   )
 
   return (
@@ -115,41 +142,66 @@ function DataManager({ title, fields, load, create, update, remove }: DataManage
           <table className="w-full text-left">
             <thead className="border-b border-gray-200 text-sm text-gray-600">
               <tr>
-                {fields.map((field) => (
+                {tableFields.map((field) => (
                   <th className="px-4 py-3 font-medium sm:px-6" key={field.name}>
                     {field.label}
                   </th>
                 ))}
+                {restore && <th className="px-4 py-3 font-medium sm:px-6">Status</th>}
                 <th className="px-4 py-3 text-right font-medium sm:px-6">Acties</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
               {visibleRows.map((row) => (
-                <tr key={row.id}>
-                  {fields.map((field) => (
+                <tr className={`h-14 ${row.isActive === false ? 'text-gray-400' : ''}`} key={row.id}>
+                  {tableFields.map((field) => (
                     <td className="px-4 py-2 sm:px-6" key={field.name}>
-                      {row.values[field.name]}
+                      {displayValue(row.values[field.name])}
                     </td>
                   ))}
+                  {restore && (
+                    <td className="px-4 py-2 sm:px-6">
+                      <span
+                        className={`rounded-full px-2.5 py-1 text-xs font-medium ${
+                          row.isActive === false ? 'bg-gray-100 text-gray-600' : 'bg-green-100 text-green-800'
+                        }`}
+                      >
+                        {row.isActive === false ? 'Inactief' : 'Actief'}
+                      </span>
+                    </td>
+                  )}
                   <td className="px-2 py-2 sm:px-4">
-                    <div className="flex justify-end gap-1">
-                      <button
-                        className={iconButtonClasses}
-                        type="button"
-                        aria-label="Wijzigen"
-                        onClick={() => setEditing(row)}
-                      >
-                        <Pencil className="size-4" aria-hidden="true" />
-                      </button>
-                      <button
-                        className={`${iconButtonClasses} hover:text-red-700`}
-                        type="button"
-                        aria-label="Verwijderen"
-                        onClick={() => setDeleting(row)}
-                      >
-                        <Trash2 className="size-4" aria-hidden="true" />
-                      </button>
-                    </div>
+                    {!row.isLocked && (
+                      <div className="flex justify-end gap-1">
+                        <button
+                          className={iconButtonClasses}
+                          type="button"
+                          aria-label="Wijzigen"
+                          onClick={() => setEditing(row)}
+                        >
+                          <Pencil className="size-4" aria-hidden="true" />
+                        </button>
+                        {restore && row.isActive === false ? (
+                          <button
+                            className={`${iconButtonClasses} hover:text-green-700`}
+                            type="button"
+                            aria-label="Actief maken"
+                            onClick={() => save(() => restore(row.id))}
+                          >
+                            <RotateCcw className="size-4" aria-hidden="true" />
+                          </button>
+                        ) : (
+                          <button
+                            className={`${iconButtonClasses} hover:text-red-700`}
+                            type="button"
+                            aria-label="Verwijderen"
+                            onClick={() => setDeleting(row)}
+                          >
+                            <Trash2 className="size-4" aria-hidden="true" />
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -161,17 +213,27 @@ function DataManager({ title, fields, load, create, update, remove }: DataManage
       {editing !== null && (
         <Modal title={editing === 'new' ? 'Toevoegen' : 'Wijzigen'} onClose={closeModals}>
           <form className="flex flex-col gap-5" onSubmit={handleSubmit}>
-            {fields.map((field) => (
-              <Input
-                key={field.name}
-                label={field.label}
-                name={field.name}
-                type={field.type ?? 'text'}
-                defaultValue={editing === 'new' ? '' : editing.values[field.name]}
-                maxLength={255}
-                required
-              />
-            ))}
+            {fields.map((field) => {
+              const value = editing === 'new' ? undefined : editing.values[field.name]
+              const isOptional = field.optionalOnEdit && editing !== 'new'
+
+              if (field.type === 'checkbox') {
+                return <Toggle key={field.name} label={field.label} name={field.name} defaultChecked={value === true} />
+              }
+              return (
+                <Input
+                  key={field.name}
+                  label={field.label}
+                  name={field.name}
+                  type={field.type ?? 'text'}
+                  defaultValue={typeof value === 'string' ? value : ''}
+                  placeholder={isOptional ? 'Leeg laten om niet te wijzigen' : undefined}
+                  minLength={field.minLength}
+                  maxLength={255}
+                  required={!isOptional}
+                />
+              )
+            })}
 
             {error && <FormMessage message={{ text: error, isError: true }} />}
 
@@ -189,7 +251,7 @@ function DataManager({ title, fields, load, create, update, remove }: DataManage
         <Modal title="Verwijderen" onClose={closeModals}>
           <div className="flex flex-col gap-5">
             <p>
-              Weet je zeker dat je <strong>{deleting.values[fields[0].name]}</strong> wilt verwijderen?
+              Weet je zeker dat je <strong>{displayValue(deleting.values[fields[0].name])}</strong> wilt verwijderen?
             </p>
 
             {error && <FormMessage message={{ text: error, isError: true }} />}

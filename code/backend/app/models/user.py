@@ -1,4 +1,4 @@
-from sqlalchemy import String
+from sqlalchemy import String, true
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .base import Base
@@ -13,5 +13,6 @@ class User(Base):
     email: Mapped[str] = mapped_column(String(255))
     password: Mapped[str | None] = mapped_column(String(255))
     is_admin: Mapped[bool]
+    is_active: Mapped[bool] = mapped_column(default=True, server_default=true())
 
     reservations: Mapped[list["Reservation"]] = relationship(back_populates="user")

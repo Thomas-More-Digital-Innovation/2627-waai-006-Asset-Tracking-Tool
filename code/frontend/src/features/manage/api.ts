@@ -5,6 +5,15 @@ type Category = {
   name: string
 }
 
+type User = {
+  user_id: number
+  firstname: string
+  lastname: string
+  email: string
+  is_admin: boolean
+  is_active: boolean
+}
+
 type Department = {
   department_id: number
   name: string
@@ -60,4 +69,35 @@ export async function updateDepartment(id: number, values: DataValues): Promise<
 
 export async function deleteDepartment(id: number): Promise<void> {
   await request(`/api/departments/${id}`, 'DELETE')
+}
+
+export async function fetchUsers(): Promise<DataRow[]> {
+  const [users, currentUser] = await Promise.all([
+    request<User[]>('/api/users'),
+    request<User>('/api/auth/me'),
+  ])
+  return users.map((user) => ({
+    id: user.user_id,
+    values: { firstname: user.firstname, lastname: user.lastname, email: user.email, is_admin: user.is_admin },
+    isActive: user.is_active,
+    // Admins cannot edit or remove their own account from this list
+    isLocked: user.user_id === currentUser.user_id,
+  }))
+}
+
+export async function createUser(values: DataValues): Promise<void> {
+  await request('/api/users', 'POST', values)
+}
+
+export async function updateUser(id: number, values: DataValues): Promise<void> {
+  // An empty password means the current password stays the same
+  await request(`/api/users/${id}`, 'PUT', { ...values, password: values.password || null })
+}
+
+export async function deleteUser(id: number): Promise<void> {
+  await request(`/api/users/${id}`, 'DELETE')
+}
+
+export async function activateUser(id: number): Promise<void> {
+  await request(`/api/users/${id}/activate`, 'POST')
 }

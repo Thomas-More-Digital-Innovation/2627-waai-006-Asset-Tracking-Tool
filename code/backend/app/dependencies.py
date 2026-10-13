@@ -16,7 +16,7 @@ def get_current_user(
 ) -> User:
     user_id = decode_access_token(access_token) if access_token else None
     user = db.get(User, user_id) if user_id is not None else None
-    if user is None:
+    if user is None or not user.is_active:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Niet ingelogd")
     return user
 
@@ -28,3 +28,6 @@ def get_admin_user(current_user: CurrentUser) -> User:
     if not current_user.is_admin:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Alleen voor beheerders")
     return current_user
+
+
+AdminUser = Annotated[User, Depends(get_admin_user)]
