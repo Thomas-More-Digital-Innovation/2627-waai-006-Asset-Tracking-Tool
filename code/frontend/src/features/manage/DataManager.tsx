@@ -4,6 +4,7 @@ import Button from '../../components/ui/Button.tsx'
 import FormMessage from '../../components/ui/FormMessage.tsx'
 import Input from '../../components/ui/Input.tsx'
 import Modal from '../../components/ui/Modal.tsx'
+import SearchBar from '../../components/ui/SearchBar.tsx'
 
 export type DataValues = Record<string, string>
 
@@ -36,6 +37,7 @@ function DataManager({ title, fields, load, create, update, remove }: DataManage
   const [editing, setEditing] = useState<DataRow | 'new' | null>(null)
   const [deleting, setDeleting] = useState<DataRow | null>(null)
   const [error, setError] = useState('')
+  const [search, setSearch] = useState('')
 
   // Loads the rows once, when the component first appears
   useEffect(() => {
@@ -76,6 +78,12 @@ function DataManager({ title, fields, load, create, update, remove }: DataManage
 
   const isModalOpen = editing !== null || deleting !== null
 
+  // Keeps the rows where at least one field contains the search text
+  const searchText = search.trim().toLowerCase()
+  const visibleRows = rows.filter((row) =>
+    fields.some((field) => row.values[field.name].toLowerCase().includes(searchText)),
+  )
+
   return (
     <section className="rounded-xl bg-white shadow">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 px-6 py-4">
@@ -92,30 +100,38 @@ function DataManager({ title, fields, load, create, update, remove }: DataManage
         </div>
       )}
 
-      {rows.length === 0 ? (
-        <p className="px-6 py-8 text-center text-gray-600">Nog geen gegevens.</p>
+      {rows.length > 0 && (
+        <div className="border-b border-gray-200 px-6 py-4 sm:max-w-sm sm:border-b-0 sm:pb-0">
+          <SearchBar value={search} onChange={(event) => setSearch(event.target.value)} />
+        </div>
+      )}
+
+      {visibleRows.length === 0 ? (
+        <p className="px-6 py-8 text-center text-gray-600">
+          {rows.length === 0 ? 'Nog geen gegevens.' : 'Geen resultaten gevonden'}
+        </p>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-left">
             <thead className="border-b border-gray-200 text-sm text-gray-600">
               <tr>
                 {fields.map((field) => (
-                  <th className="px-6 py-3 font-medium" key={field.name}>
+                  <th className="px-4 py-3 font-medium sm:px-6" key={field.name}>
                     {field.label}
                   </th>
                 ))}
-                <th className="px-6 py-3 text-right font-medium">Acties</th>
+                <th className="px-4 py-3 text-right font-medium sm:px-6">Acties</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
-              {rows.map((row) => (
+              {visibleRows.map((row) => (
                 <tr key={row.id}>
                   {fields.map((field) => (
-                    <td className="px-6 py-2" key={field.name}>
+                    <td className="px-4 py-2 sm:px-6" key={field.name}>
                       {row.values[field.name]}
                     </td>
                   ))}
-                  <td className="px-4 py-2">
+                  <td className="px-2 py-2 sm:px-4">
                     <div className="flex justify-end gap-1">
                       <button
                         className={iconButtonClasses}
