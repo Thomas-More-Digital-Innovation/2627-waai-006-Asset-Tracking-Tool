@@ -5,6 +5,12 @@ type Category = {
   name: string
 }
 
+type Department = {
+  department_id: number
+  name: string
+  mail: string
+}
+
 async function request<T>(url: string, method = 'GET', body?: unknown): Promise<T> {
   const response = await fetch(url, {
     method,
@@ -34,4 +40,24 @@ export async function updateCategory(id: number, values: DataValues): Promise<vo
 
 export async function deleteCategory(id: number): Promise<void> {
   await request(`/api/categories/${id}`, 'DELETE')
+}
+
+export async function fetchDepartments(): Promise<DataRow[]> {
+  const departments = await request<Department[]>('/api/departments')
+  return departments.map((department) => ({
+    id: department.department_id,
+    values: { name: department.name, mail: department.mail },
+  }))
+}
+
+export async function createDepartment(values: DataValues): Promise<void> {
+  await request('/api/departments', 'POST', values)
+}
+
+export async function updateDepartment(id: number, values: DataValues): Promise<void> {
+  await request(`/api/departments/${id}`, 'PUT', values)
+}
+
+export async function deleteDepartment(id: number): Promise<void> {
+  await request(`/api/departments/${id}`, 'DELETE')
 }

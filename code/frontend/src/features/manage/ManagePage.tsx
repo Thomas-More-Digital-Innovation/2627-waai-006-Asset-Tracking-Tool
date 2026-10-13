@@ -1,11 +1,28 @@
 import { useState } from 'react'
 import Dropdown from '../../components/ui/Dropdown.tsx'
-import { createCategory, deleteCategory, fetchCategories, updateCategory } from './api.ts'
+import {
+  createCategory,
+  createDepartment,
+  deleteCategory,
+  deleteDepartment,
+  fetchCategories,
+  fetchDepartments,
+  updateCategory,
+  updateDepartment,
+} from './api.ts'
 import DataManager from './DataManager.tsx'
 
-const manageOptions = [{ value: 'category', label: 'Categorieën' }]
+const manageOptions = [
+  { value: 'category', label: 'Categorieën' },
+  { value: 'department', label: 'Afdelingen' },
+]
 
 const categoryFields = [{ name: 'name', label: 'Naam' }]
+
+const departmentFields = [
+  { name: 'name', label: 'Naam' },
+  { name: 'mail', label: 'E-mailadres', type: 'email' },
+]
 
 function ManagePage() {
   const [selected, setSelected] = useState('')
@@ -34,6 +51,17 @@ function ManagePage() {
           create={createCategory}
           update={updateCategory}
           remove={deleteCategory}
+        />
+      )}
+
+      {selected === 'department' && (
+        <DataManager
+          title="Afdelingen"
+          fields={departmentFields}
+          load={fetchDepartments}
+          create={createDepartment}
+          update={updateDepartment}
+          remove={deleteDepartment}
         />
       )}
     </div>
