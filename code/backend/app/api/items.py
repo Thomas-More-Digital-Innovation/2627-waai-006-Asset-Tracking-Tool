@@ -14,6 +14,8 @@ router = APIRouter(prefix="/items", tags=["items"])
 
 
 class ItemInput(BaseModel):
+    # Optional, but when filled in it must be unique
+    article_number: Annotated[str, StringConstraints(strip_whitespace=True, max_length=255)] | None = None
     name: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=255)]
     detail: str | None = None
     count: int = Field(ge=0)
@@ -24,6 +26,7 @@ class ItemResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     item_id: int
+    article_number: str | None
     name: str
     photo: str | None
     detail: str | None
@@ -39,9 +42,19 @@ def get_item(db: Session, item_id: int) -> Item:
     return item
 
 
+def find_item_by_article_number(db: Session, article_number: str) -> Item | None:
+    return db.scalars(select(Item).where(Item.article_number == article_number)).first()
+
+
 def apply_input(db: Session, item: Item, data: ItemInput) -> None:
     if db.get(Category, data.category_id) is None:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Onbekende categorie")
+    article_number = data.article_number or None
+    if article_number is not None:
+        existing = find_item_by_article_number(db, article_number)
+        if existing is not None and existing is not item:
+            raise HTTPException(status.HTTP_409_CONFLICT, "Er bestaat al een item met dit artikelnummer")
+    item.article_number = article_number
     item.name = data.name
     item.detail = data.detail.strip() or None if data.detail else None
     item.count = data.count

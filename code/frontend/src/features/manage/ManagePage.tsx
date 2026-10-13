@@ -34,6 +34,7 @@ const categoryFields: DataField[] = [{ name: 'name', label: 'Naam' }]
 
 const itemFields: DataField[] = [
   { name: 'photo', label: 'Foto', type: 'image' },
+  { name: 'article_number', label: 'Artikelnummer', optional: true },
   { name: 'name', label: 'Naam' },
   { name: 'category_id', label: 'Categorie', type: 'select', loadOptions: fetchCategoryOptions },
   { name: 'count', label: 'Aantal', type: 'number' },

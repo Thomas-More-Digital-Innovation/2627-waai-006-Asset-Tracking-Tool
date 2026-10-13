@@ -17,6 +17,7 @@ type User = {
 
 type Item = {
   item_id: number
+  article_number: string | null
   name: string
   photo: string | null
   detail: string | null
@@ -119,6 +120,7 @@ export async function fetchItems(): Promise<DataRow[]> {
     id: item.item_id,
     values: {
       photo: item.photo ? `/api/items/photos/${item.photo}` : '',
+      article_number: item.article_number ?? '',
       name: item.name,
       category_id: String(item.category_id),
       count: String(item.count),
@@ -131,6 +133,7 @@ export async function fetchItems(): Promise<DataRow[]> {
 // The form works with text, the backend expects numbers for the count and the category
 function toItemBody(values: DataValues) {
   return {
+    article_number: values.article_number || null,
     name: values.name,
     detail: values.detail,
     count: Number(values.count),

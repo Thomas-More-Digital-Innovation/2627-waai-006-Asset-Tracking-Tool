@@ -8,6 +8,7 @@ class Item(Base):
     __tablename__ = "items"
 
     item_id: Mapped[int] = mapped_column(primary_key=True)
+    article_number: Mapped[str | None] = mapped_column(String(255), unique=True, nullable=True)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     photo: Mapped[str | None] = mapped_column(String(255), nullable=True)
     detail: Mapped[str | None] = mapped_column(Text, nullable=True)
