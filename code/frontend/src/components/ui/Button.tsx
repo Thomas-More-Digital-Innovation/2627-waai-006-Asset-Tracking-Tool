@@ -1,6 +1,6 @@
 import type { ComponentProps } from 'react'
 
-type ButtonVariant = 'primary' | 'secondary'
+type ButtonVariant = 'primary' | 'secondary' | 'danger'
 
 type ButtonProps = ComponentProps<'button'> & {
   variant?: ButtonVariant
@@ -9,6 +9,7 @@ type ButtonProps = ComponentProps<'button'> & {
 const variantClasses: Record<ButtonVariant, string> = {
   primary: 'bg-primary text-white',
   secondary: 'bg-secondary text-white',
+  danger: 'bg-red-600 text-white',
 }
 
 function Button({ variant = 'primary', type = 'button', className = '', ...props }: ButtonProps) {
