@@ -50,8 +50,9 @@ def list_days_of_week(current_user: CurrentUser, db: DbSession):
     return db.scalars(select(DayOfWeek).order_by(DayOfWeek.day_of_week_id)).all()
 
 
-@router.get("/settings", response_model=ApplicationSettingSchema, dependencies=[Depends(get_admin_user)])
-def read_settings(db: DbSession):
+@router.get("/settings", response_model=ApplicationSettingSchema)
+def read_settings(current_user: CurrentUser, db: DbSession):
+    # Every logged-in user may read the settings, the reservation form needs them
     return get_application_setting(db)
 
 

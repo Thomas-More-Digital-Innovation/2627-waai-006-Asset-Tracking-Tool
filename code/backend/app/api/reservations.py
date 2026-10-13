@@ -3,10 +3,12 @@ from datetime import date, datetime, time
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select
+from sqlalchemy.orm import Session
 
 from ..availability import reserved_per_item
 from ..dependencies import CurrentUser, DbSession
 from ..models import Department, Item, Reservation, ReservationItem
+from .settings import get_application_setting
 
 router = APIRouter(prefix="/reservations", tags=["reservations"])
 
@@ -36,12 +38,33 @@ class ReservationResponse(BaseModel):
     department_id: int | None
 
 
+def check_summer_rules(db: Session, data: ReservationInput) -> None:
+    """Refuses a reservation that does not follow the summer times and weekdays, when those are set."""
+    setting = get_application_setting(db)
+    if not setting.is_summer_time:
+        return
+
+    problems = []
+    if setting.summer_start_time and data.start_time != setting.summer_start_time:
+        problems.append(f"starten kan alleen om {setting.summer_start_time:%H:%M}")
+    if setting.summer_end_time and data.end_time != setting.summer_end_time:
+        problems.append(f"eindigen kan alleen om {setting.summer_end_time:%H:%M}")
+    # The weekday ids run from 1 (Monday) to 7 (Sunday), the same numbering as isoweekday()
+    if setting.summer_start_day and data.start_date.isoweekday() != setting.summer_start_day.day_of_week_id:
+        problems.append(f"starten kan alleen op {setting.summer_start_day.name.lower()}")
+    if setting.summer_end_day and data.end_date.isoweekday() != setting.summer_end_day.day_of_week_id:
+        problems.append(f"eindigen kan alleen op {setting.summer_end_day.name.lower()}")
+    if problems:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Zomerregeling: " + ", ".join(problems))
+
+
 @router.post("", response_model=ReservationResponse, status_code=status.HTTP_201_CREATED)
 def create_reservation(data: ReservationInput, current_user: CurrentUser, db: DbSession):
     start = datetime.combine(data.start_date, data.start_time)
     end = datetime.combine(data.end_date, data.end_time)
     if end <= start:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Het einde moet na het begin liggen")
+    check_summer_rules(db, data)
 
     department = db.get(Department, data.department_id)
     if department is None or not department.is_active:
