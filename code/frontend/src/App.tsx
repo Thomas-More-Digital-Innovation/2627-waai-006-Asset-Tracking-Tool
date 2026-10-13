@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react'
 import Footer from './components/layout/Footer.tsx'
 import Navbar from './components/layout/Navbar.tsx'
+import { adminLinks, defaultLinks } from './components/layout/navLinks.ts'
 import { fetchCurrentUser, logout, type User } from './features/auth/api.ts'
 import LoginPage from './features/auth/LoginPage.tsx'
+import ManagePage from './features/manage/ManagePage.tsx'
 import SettingsPage from './features/settings/SettingsPage.tsx'
 
 function App() {
@@ -29,16 +31,18 @@ function App() {
     return <LoginPage onLogin={setUser} />
   }
 
+  const path = window.location.pathname
+  let page = <h1 className="text-2xl font-semibold">Welkom, {user.firstname}</h1>
+  if (path === '/settings') {
+    page = <SettingsPage user={user} onUserChange={setUser} />
+  } else if (path === '/manage' && user.is_admin) {
+    page = <ManagePage />
+  }
+
   return (
     <div className="flex min-h-screen flex-col bg-gray-50 text-gray-900">
-      <Navbar onLogout={handleLogout} />
-      <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8 sm:px-6">
-        {window.location.pathname === '/settings' ? (
-          <SettingsPage user={user} onUserChange={setUser} />
-        ) : (
-          <h1 className="text-2xl font-semibold">Welkom, {user.firstname}</h1>
-        )}
-      </main>
+      <Navbar links={user.is_admin ? adminLinks : defaultLinks} onLogout={handleLogout} />
+      <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8 sm:px-6">{page}</main>
       <Footer />
     </div>
   )
