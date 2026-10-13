@@ -17,7 +17,7 @@ function Navbar({ links = defaultLinks, onLogout }: NavbarProps) {
     <header className="sticky top-0 z-10 bg-primary text-white shadow-md">
       <div className="mx-auto flex h-16 w-full max-w-6xl items-center justify-between px-4 sm:px-6">
         <Logo />
-        <div className="hidden items-center gap-4 sm:flex">
+        <div className="hidden items-center gap-4 md:flex">
           <nav aria-label="Hoofdnavigatie">
             <ul className="flex items-center gap-1">
               {links.map((link) => {
@@ -47,7 +47,7 @@ function Navbar({ links = defaultLinks, onLogout }: NavbarProps) {
         </div>
 
         <button
-          className="-mr-2 flex size-11 items-center justify-center rounded-md transition-colors hover:bg-white/10 sm:hidden"
+          className="-mr-2 flex size-11 items-center justify-center rounded-md transition-colors hover:bg-white/10 md:hidden"
           type="button"
           aria-label={isOpen ? 'Menu sluiten' : 'Menu openen'}
           aria-expanded={isOpen}
@@ -58,7 +58,7 @@ function Navbar({ links = defaultLinks, onLogout }: NavbarProps) {
       </div>
 
       {isOpen && (
-        <nav className="border-t border-white/15 sm:hidden" aria-label="Hoofdnavigatie">
+        <nav className="border-t border-white/15 md:hidden" aria-label="Hoofdnavigatie">
           <ul className="mx-auto flex w-full max-w-6xl flex-col gap-1 px-4 py-3">
             {links.map((link) => {
               const isActive = currentPath === link.href

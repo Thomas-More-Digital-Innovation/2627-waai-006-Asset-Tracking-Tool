@@ -6,4 +6,5 @@ export type NavLink = {
 export const defaultLinks: NavLink[] = [
   { label: 'Items', href: '/items' },
   { label: 'Reserveringen', href: '/reservations' },
+  { label: 'Instellingen', href: '/settings' },
 ]

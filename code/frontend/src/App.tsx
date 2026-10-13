@@ -3,6 +3,7 @@ import Footer from './components/layout/Footer.tsx'
 import Navbar from './components/layout/Navbar.tsx'
 import { fetchCurrentUser, logout, type User } from './features/auth/api.ts'
 import LoginPage from './features/auth/LoginPage.tsx'
+import SettingsPage from './features/settings/SettingsPage.tsx'
 
 function App() {
   const [user, setUser] = useState<User | null>(null)
@@ -32,7 +33,11 @@ function App() {
     <div className="flex min-h-screen flex-col bg-gray-50 text-gray-900">
       <Navbar onLogout={handleLogout} />
       <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8 sm:px-6">
-        <h1 className="text-2xl font-semibold">Welkom, {user.firstname}</h1>
+        {window.location.pathname === '/settings' ? (
+          <SettingsPage user={user} onUserChange={setUser} />
+        ) : (
+          <h1 className="text-2xl font-semibold">Welkom, {user.firstname}</h1>
+        )}
       </main>
       <Footer />
     </div>

@@ -1,12 +1,19 @@
 import os
+from typing import Annotated
 
 from fastapi import APIRouter, HTTPException, Response, status
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 from sqlalchemy import select
 
 from ..dependencies import CurrentUser, DbSession
 from ..models import User
-from ..security import ACCESS_TOKEN_COOKIE, ACCESS_TOKEN_MAX_AGE, create_access_token, verify_password
+from ..security import (
+    ACCESS_TOKEN_COOKIE,
+    ACCESS_TOKEN_MAX_AGE,
+    create_access_token,
+    hash_password,
+    verify_password,
+)
 
 COOKIE_SECURE = os.environ.get("COOKIE_SECURE", "false").lower() == "true"
 
@@ -26,6 +33,19 @@ class UserResponse(BaseModel):
     lastname: str
     email: str
     is_admin: bool
+
+
+Name = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=255)]
+
+
+class ProfileUpdate(BaseModel):
+    firstname: Name
+    lastname: Name
+
+
+class PasswordChange(BaseModel):
+    current_password: str
+    new_password: str = Field(min_length=8, max_length=72)
 
 
 @router.post("/login", response_model=UserResponse)
@@ -53,3 +73,20 @@ def logout(response: Response):
 @router.get("/me", response_model=UserResponse)
 def me(current_user: CurrentUser):
     return current_user
+
+
+@router.patch("/me", response_model=UserResponse)
+def update_profile(profile: ProfileUpdate, current_user: CurrentUser, db: DbSession):
+    current_user.firstname = profile.firstname
+    current_user.lastname = profile.lastname
+    db.commit()
+    return current_user
+
+
+@router.put("/me/password", status_code=status.HTTP_204_NO_CONTENT)
+def change_password(passwords: PasswordChange, current_user: CurrentUser, db: DbSession):
+    if current_user.password is None or not verify_password(passwords.current_password, current_user.password):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Huidig wachtwoord is onjuist")
+
+    current_user.password = hash_password(passwords.new_password)
+    db.commit()
