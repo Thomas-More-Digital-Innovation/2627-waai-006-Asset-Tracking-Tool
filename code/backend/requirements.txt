@@ -1,4 +1,6 @@
+bcrypt==5.0.0
 fastapi==0.143.0
 psycopg[binary]==3.3.6
+PyJWT==2.15.1
 SQLAlchemy==2.1.4
 uvicorn[standard]==0.54.0
