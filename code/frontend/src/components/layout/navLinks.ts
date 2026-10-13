@@ -4,13 +4,13 @@ export type NavLink = {
 }
 
 export const defaultLinks: NavLink[] = [
-  { label: 'Items', href: '/items' },
+  { label: 'Reserveer', href: '/reserve' },
   { label: 'Reserveringen', href: '/reservations' },
   { label: 'Instellingen', href: '/settings' },
 ]
 
 export const adminLinks: NavLink[] = [
-  { label: 'Items', href: '/items' },
+  { label: 'Reserveer', href: '/reserve' },
   { label: 'Reserveringen', href: '/reservations' },
   { label: 'Beheren', href: '/manage' },
   { label: 'Instellingen', href: '/settings' },

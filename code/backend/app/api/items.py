@@ -1,3 +1,4 @@
+from datetime import date, datetime, time
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, status
@@ -6,6 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from ..availability import reserved_per_item
 from ..dependencies import CurrentUser, DbSession, get_admin_user
 from ..images import delete_image, image_path, save_image
 from ..models import Category, Item
@@ -35,6 +37,11 @@ class ItemResponse(BaseModel):
     is_active: bool
 
 
+class ItemAvailability(ItemResponse):
+    # How many of this item are still free in the requested period
+    available: int
+
+
 def get_item(db: Session, item_id: int) -> Item:
     item = db.get(Item, item_id)
     if item is None:
@@ -61,14 +68,34 @@ def apply_input(db: Session, item: Item, data: ItemInput) -> None:
     item.category_id = data.category_id
 
 
-@router.get("", response_model=list[ItemResponse])
-def list_items(current_user: CurrentUser, db: DbSession, include_inactive: bool = False):
-    query = select(Item).order_by(Item.is_active.desc(), Item.name)
-    if not include_inactive:
-        query = query.where(Item.is_active)
-    elif not current_user.is_admin:
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "Alleen voor beheerders")
-    return db.scalars(query).all()
+@router.get("", response_model=list[ItemResponse], dependencies=[Depends(get_admin_user)])
+def list_items(db: DbSession):
+    # Active items first, inactive items at the bottom
+    return db.scalars(select(Item).order_by(Item.is_active.desc(), Item.name)).all()
+
+
+@router.get("/available", response_model=list[ItemAvailability])
+def list_available_items(
+    current_user: CurrentUser,
+    db: DbSession,
+    start_date: date,
+    start_time: time,
+    end_date: date,
+    end_time: time,
+):
+    start = datetime.combine(start_date, start_time)
+    end = datetime.combine(end_date, end_time)
+    if end <= start:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Het einde moet na het begin liggen")
+
+    reserved = reserved_per_item(db, start, end)
+    items = db.scalars(select(Item).where(Item.is_active).order_by(Item.name)).all()
+    result = []
+    for item in items:
+        available = item.count - reserved.get(item.item_id, 0)
+        if available > 0:
+            result.append(ItemAvailability(**ItemResponse.model_validate(item).model_dump(), available=available))
+    return result
 
 
 @router.post(

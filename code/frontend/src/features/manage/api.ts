@@ -1,3 +1,4 @@
+import { request } from '../../lib/request.ts'
 import type { DataRow, DataValues } from './DataManager.tsx'
 import { PartialSaveError } from './PartialSaveError.ts'
 
@@ -30,20 +31,6 @@ type Department = {
   department_id: number
   name: string
   mail: string
-}
-
-async function request<T>(url: string, method = 'GET', body?: unknown): Promise<T> {
-  const response = await fetch(url, {
-    method,
-    headers: body ? { 'Content-Type': 'application/json' } : undefined,
-    body: body ? JSON.stringify(body) : undefined,
-  })
-  if (!response.ok) {
-    // The backend sends a readable reason in "detail" for errors it expects
-    const error = await response.json().catch(() => null)
-    throw new Error(typeof error?.detail === 'string' ? error.detail : 'Er ging iets mis.')
-  }
-  return response.status === 204 ? (undefined as T) : response.json()
 }
 
 export async function fetchCategories(): Promise<DataRow[]> {
@@ -115,7 +102,7 @@ export async function activateUser(id: number): Promise<void> {
 }
 
 export async function fetchItems(): Promise<DataRow[]> {
-  const items = await request<Item[]>('/api/items?include_inactive=true')
+  const items = await request<Item[]>('/api/items')
   return items.map((item) => ({
     id: item.item_id,
     values: {
