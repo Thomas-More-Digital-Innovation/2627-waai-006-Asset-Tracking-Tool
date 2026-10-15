@@ -3,7 +3,7 @@ from datetime import date, datetime, time
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from ..availability import reserved_per_item
 from ..dependencies import CurrentUser, DbSession
@@ -38,6 +38,22 @@ class ReservationResponse(BaseModel):
     department_id: int | None
 
 
+class ReservedItem(BaseModel):
+    item_id: int
+    name: str
+    count: int
+
+
+class ReservationOverview(BaseModel):
+    reservation_id: int
+    start_date: date
+    start_time: time
+    end_date: date
+    end_time: time
+    department_name: str | None
+    items: list[ReservedItem]
+
+
 def check_summer_rules(db: Session, data: ReservationInput) -> None:
     """Refuses a reservation that does not follow the summer times and weekdays, when those are set."""
     setting = get_application_setting(db)
@@ -56,6 +72,38 @@ def check_summer_rules(db: Session, data: ReservationInput) -> None:
         problems.append(f"eindigen kan alleen op {setting.summer_end_day.name.lower()}")
     if problems:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Zomerregeling: " + ", ".join(problems))
+
+
+@router.get("", response_model=list[ReservationOverview])
+def list_my_reservations(current_user: CurrentUser, db: DbSession):
+    """Returns the reservations of the current user that are still running or have yet to start."""
+    reservations = db.scalars(
+        select(Reservation)
+        .where(
+            Reservation.user_id == current_user.user_id,
+            Reservation.end_date + Reservation.end_time > datetime.now(),
+        )
+        .options(
+            selectinload(Reservation.department),
+            selectinload(Reservation.reservation_items).selectinload(ReservationItem.item),
+        )
+        .order_by(Reservation.start_date, Reservation.start_time)
+    ).all()
+    return [
+        ReservationOverview(
+            reservation_id=reservation.reservation_id,
+            start_date=reservation.start_date,
+            start_time=reservation.start_time,
+            end_date=reservation.end_date,
+            end_time=reservation.end_time,
+            department_name=reservation.department.name if reservation.department else None,
+            items=[
+                ReservedItem(item_id=line.item_id, name=line.item.name, count=line.count)
+                for line in reservation.reservation_items
+            ],
+        )
+        for reservation in reservations
+    ]
 
 
 @router.post("", response_model=ReservationResponse, status_code=status.HTTP_201_CREATED)

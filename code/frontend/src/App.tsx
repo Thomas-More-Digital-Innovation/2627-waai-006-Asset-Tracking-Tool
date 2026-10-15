@@ -5,6 +5,7 @@ import { adminLinks, defaultLinks } from './components/layout/navLinks.ts'
 import { fetchCurrentUser, logout, type User } from './features/auth/api.ts'
 import LoginPage from './features/auth/LoginPage.tsx'
 import ManagePage from './features/manage/ManagePage.tsx'
+import ReservationsPage from './features/reservations/ReservationsPage.tsx'
 import ReservePage from './features/reserve/ReservePage.tsx'
 import SettingsPage from './features/settings/SettingsPage.tsx'
 
@@ -36,6 +37,8 @@ function App() {
   let page = <h1 className="text-2xl font-semibold">Welkom, {user.firstname}</h1>
   if (path === '/reserve') {
     page = <ReservePage />
+  } else if (path === '/reservations') {
+    page = <ReservationsPage />
   } else if (path === '/settings') {
     page = <SettingsPage user={user} onUserChange={setUser} />
   } else if (path === '/manage' && user.is_admin) {
