@@ -106,6 +106,22 @@ def list_my_reservations(current_user: CurrentUser, db: DbSession):
     ]
 
 
+@router.delete("/{reservation_id}", status_code=status.HTTP_204_NO_CONTENT)
+def cancel_reservation(reservation_id: int, current_user: CurrentUser, db: DbSession):
+    """Cancels a reservation of the current user that has not started yet."""
+    reservation = db.get(Reservation, reservation_id)
+    # Someone else's reservation is answered the same as a missing one, so it does not reveal that it exists
+    if reservation is None or reservation.user_id != current_user.user_id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Reservering niet gevonden")
+    if datetime.combine(reservation.start_date, reservation.start_time) <= datetime.now():
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Een lopende reservering kan niet geannuleerd worden")
+
+    for line in reservation.reservation_items:
+        db.delete(line)
+    db.delete(reservation)
+    db.commit()
+
+
 @router.post("", response_model=ReservationResponse, status_code=status.HTTP_201_CREATED)
 def create_reservation(data: ReservationInput, current_user: CurrentUser, db: DbSession):
     start = datetime.combine(data.start_date, data.start_time)

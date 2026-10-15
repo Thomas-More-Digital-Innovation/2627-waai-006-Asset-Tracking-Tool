@@ -20,3 +20,7 @@ export type Reservation = {
 export function fetchMyReservations(): Promise<Reservation[]> {
   return request('/api/reservations')
 }
+
+export function cancelReservation(reservationId: number): Promise<void> {
+  return request(`/api/reservations/${reservationId}`, 'DELETE')
+}

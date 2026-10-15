@@ -3,7 +3,7 @@ import Button from '../../components/ui/Button.tsx'
 import FormMessage from '../../components/ui/FormMessage.tsx'
 import Modal from '../../components/ui/Modal.tsx'
 import { formatMoment } from '../reserve/period.ts'
-import { fetchMyReservations, type Reservation } from './api.ts'
+import { cancelReservation, fetchMyReservations, type Reservation } from './api.ts'
 
 // The backend sends times as "09:00:00", only the hours and minutes are shown
 function formatStart(reservation: Reservation) {
@@ -18,6 +18,8 @@ function ReservationsPage() {
   const [reservations, setReservations] = useState<Reservation[] | null>(null)
   const [hasError, setHasError] = useState(false)
   const [selected, setSelected] = useState<Reservation | null>(null)
+  const [cancelling, setCancelling] = useState<Reservation | null>(null)
+  const [cancelError, setCancelError] = useState('')
 
   // Loads the reservations once, when the page first appears
   useEffect(() => {
@@ -27,6 +29,21 @@ function ReservationsPage() {
   }, [])
 
   const now = new Date()
+
+  function closeCancel() {
+    setCancelling(null)
+    setCancelError('')
+  }
+
+  async function handleCancel(reservation: Reservation) {
+    try {
+      await cancelReservation(reservation.reservation_id)
+      setReservations((current) => current?.filter((r) => r.reservation_id !== reservation.reservation_id) ?? null)
+      closeCancel()
+    } catch (caught) {
+      setCancelError(caught instanceof Error ? caught.message : 'Er ging iets mis.')
+    }
+  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -62,9 +79,20 @@ function ReservationsPage() {
                     {isRunning ? 'Bezig' : 'Gepland'} · {total} {total === 1 ? 'item' : 'items'}
                   </p>
                 </div>
-                <Button variant="secondary" onClick={() => setSelected(reservation)}>
-                  Bekijk items
-                </Button>
+                <div className="flex flex-wrap gap-2">
+                  <Button variant="secondary" onClick={() => setSelected(reservation)}>
+                    Bekijk items
+                  </Button>
+                  {/* A reservation that has started can no longer be cancelled */}
+                  <Button
+                    variant="danger"
+                    disabled={isRunning}
+                    title={isRunning ? 'Een lopende reservering kan niet geannuleerd worden' : undefined}
+                    onClick={() => setCancelling(reservation)}
+                  >
+                    Annuleren
+                  </Button>
+                </div>
               </li>
             )
           })}
@@ -84,6 +112,29 @@ function ReservationsPage() {
               </li>
             ))}
           </ul>
+        </Modal>
+      )}
+
+      {cancelling && (
+        <Modal title="Reservering annuleren" onClose={closeCancel}>
+          <div className="flex flex-col gap-5">
+            <p>
+              Weet je zeker dat je de reservering voor{' '}
+              <strong>{cancelling.department_name ?? 'geen afdeling'}</strong> van {formatStart(cancelling)} tot{' '}
+              {formatEnd(cancelling)} wilt annuleren?
+            </p>
+
+            {cancelError && <FormMessage message={{ text: cancelError, isError: true }} />}
+
+            <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+              <Button variant="secondary" onClick={closeCancel}>
+                Terug
+              </Button>
+              <Button variant="danger" onClick={() => handleCancel(cancelling)}>
+                Ja, annuleren
+              </Button>
+            </div>
+          </div>
         </Modal>
       )}
     </div>
