@@ -1,12 +1,12 @@
 from datetime import date, datetime, time
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from ..availability import reserved_per_item
-from ..dependencies import CurrentUser, DbSession
+from ..dependencies import CurrentUser, DbSession, get_admin_user
 from ..models import Department, Item, Reservation, ReservationItem
 from .settings import get_application_setting
 
@@ -51,6 +51,9 @@ class ReservationOverview(BaseModel):
     end_date: date
     end_time: time
     department_name: str | None
+    department_mail: str | None
+    # Who placed the reservation, shown to admins who see the reservations of everyone
+    user_name: str
     items: list[ReservedItem]
 
 
@@ -74,21 +77,21 @@ def check_summer_rules(db: Session, data: ReservationInput) -> None:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Zomerregeling: " + ", ".join(problems))
 
 
-@router.get("", response_model=list[ReservationOverview])
-def list_my_reservations(current_user: CurrentUser, db: DbSession):
-    """Returns the reservations of the current user that are still running or have yet to start."""
-    reservations = db.scalars(
+def list_current_reservations(db: Session, user_id: int | None = None) -> list[ReservationOverview]:
+    """Returns the reservations that are still running or have yet to start, of one user or of everyone."""
+    query = (
         select(Reservation)
-        .where(
-            Reservation.user_id == current_user.user_id,
-            Reservation.end_date + Reservation.end_time > datetime.now(),
-        )
+        .where(Reservation.end_date + Reservation.end_time > datetime.now())
         .options(
             selectinload(Reservation.department),
+            selectinload(Reservation.user),
             selectinload(Reservation.reservation_items).selectinload(ReservationItem.item),
         )
         .order_by(Reservation.start_date, Reservation.start_time)
-    ).all()
+    )
+    if user_id is not None:
+        query = query.where(Reservation.user_id == user_id)
+
     return [
         ReservationOverview(
             reservation_id=reservation.reservation_id,
@@ -97,23 +100,38 @@ def list_my_reservations(current_user: CurrentUser, db: DbSession):
             end_date=reservation.end_date,
             end_time=reservation.end_time,
             department_name=reservation.department.name if reservation.department else None,
+            department_mail=reservation.department.mail if reservation.department else None,
+            user_name=f"{reservation.user.firstname} {reservation.user.lastname}",
             items=[
                 ReservedItem(item_id=line.item_id, name=line.item.name, count=line.count)
                 for line in reservation.reservation_items
             ],
         )
-        for reservation in reservations
+        for reservation in db.scalars(query).all()
     ]
+
+
+@router.get("", response_model=list[ReservationOverview])
+def list_my_reservations(current_user: CurrentUser, db: DbSession):
+    return list_current_reservations(db, current_user.user_id)
+
+
+@router.get("/all", response_model=list[ReservationOverview], dependencies=[Depends(get_admin_user)])
+def list_all_reservations(db: DbSession):
+    return list_current_reservations(db)
 
 
 @router.delete("/{reservation_id}", status_code=status.HTTP_204_NO_CONTENT)
 def cancel_reservation(reservation_id: int, current_user: CurrentUser, db: DbSession):
-    """Cancels a reservation of the current user that has not started yet."""
+    """Cancels a reservation that has not started yet. An admin can cancel any reservation, also a running one."""
     reservation = db.get(Reservation, reservation_id)
     # Someone else's reservation is answered the same as a missing one, so it does not reveal that it exists
-    if reservation is None or reservation.user_id != current_user.user_id:
+    if reservation is None or (reservation.user_id != current_user.user_id and not current_user.is_admin):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Reservering niet gevonden")
-    if datetime.combine(reservation.start_date, reservation.start_time) <= datetime.now():
+    if (
+        not current_user.is_admin
+        and datetime.combine(reservation.start_date, reservation.start_time) <= datetime.now()
+    ):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Een lopende reservering kan niet geannuleerd worden")
 
     for line in reservation.reservation_items:

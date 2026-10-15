@@ -38,7 +38,7 @@ function App() {
   if (path === '/reserve') {
     page = <ReservePage />
   } else if (path === '/reservations') {
-    page = <ReservationsPage />
+    page = <ReservationsPage isAdmin={user.is_admin} />
   } else if (path === '/settings') {
     page = <SettingsPage user={user} onUserChange={setUser} />
   } else if (path === '/manage' && user.is_admin) {

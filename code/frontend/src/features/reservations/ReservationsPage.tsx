@@ -1,9 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import Button from '../../components/ui/Button.tsx'
 import FormMessage from '../../components/ui/FormMessage.tsx'
 import Modal from '../../components/ui/Modal.tsx'
 import { formatMoment } from '../reserve/period.ts'
-import { cancelReservation, fetchMyReservations, type Reservation } from './api.ts'
+import { cancelReservation, fetchAllReservations, fetchMyReservations, type Reservation } from './api.ts'
 
 // The backend sends times as "09:00:00", only the hours and minutes are shown
 function formatStart(reservation: Reservation) {
@@ -14,19 +14,113 @@ function formatEnd(reservation: Reservation) {
   return formatMoment(reservation.end_date, reservation.end_time.slice(0, 5))
 }
 
-function ReservationsPage() {
+function isRunning(reservation: Reservation, now: Date) {
+  return new Date(`${reservation.start_date}T${reservation.start_time}`) <= now
+}
+
+type ReservationCardProps = {
+  reservation: Reservation
+  isRunning: boolean
+  // Admins see who placed the reservation and can also cancel a running one
+  isAdmin: boolean
+  onShowItems: () => void
+  onCancel: () => void
+}
+
+function ReservationCard({ reservation, isRunning, isAdmin, onShowItems, onCancel }: ReservationCardProps) {
+  const total = reservation.items.reduce((sum, item) => sum + item.count, 0)
+  const canCancel = isAdmin || !isRunning
+
+  return (
+    <li className="flex flex-wrap items-center justify-between gap-4 rounded-xl bg-white p-5 shadow">
+      <div className="min-w-0">
+        <p className="font-semibold break-words">
+          {reservation.department_name ?? 'Geen afdeling'} - {formatStart(reservation)} - {formatEnd(reservation)}
+        </p>
+        <p className="text-sm text-gray-600">
+          {isAdmin ? reservation.user_name : isRunning ? 'Bezig' : 'Gepland'} · {total}{' '}
+          {total === 1 ? 'item' : 'items'}
+        </p>
+        {isAdmin && reservation.department_mail && (
+          <a
+            className="text-sm break-all text-primary hover:underline"
+            href={`mailto:${reservation.department_mail}`}
+          >
+            {reservation.department_mail}
+          </a>
+        )}
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <Button variant="secondary" onClick={onShowItems}>
+          Bekijk items
+        </Button>
+        <Button
+          variant="danger"
+          disabled={!canCancel}
+          title={canCancel ? undefined : 'Een lopende reservering kan niet geannuleerd worden'}
+          onClick={onCancel}
+        >
+          Annuleren
+        </Button>
+      </div>
+    </li>
+  )
+}
+
+// How many reservations a block shows before the rest has to be scrolled to
+const VISIBLE_COUNT = 3
+
+// A list that is exactly as high as its first few rows and scrolls for the rest
+function ScrollingList({ children }: { children: ReactNode[] }) {
+  const listRef = useRef<HTMLUListElement>(null)
+  const [maxHeight, setMaxHeight] = useState<number>()
+
+  // Measures again whenever the size changes, because rows get taller when their content wraps
+  useLayoutEffect(() => {
+    const list = listRef.current
+    if (!list || children.length <= VISIBLE_COUNT) {
+      setMaxHeight(undefined)
+      return
+    }
+    function measure() {
+      const lastVisible = list!.children[VISIBLE_COUNT - 1] as HTMLElement
+      // A small extra room so the shadow of the last visible card is not cut off
+      setMaxHeight(lastVisible.offsetTop + lastVisible.offsetHeight + 4)
+    }
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(list)
+    return () => observer.disconnect()
+  }, [children.length])
+
+  return (
+    <ul
+      className={`relative flex flex-col gap-4 ${maxHeight ? '-mx-1 overflow-y-auto px-1' : ''}`}
+      style={{ maxHeight }}
+      ref={listRef}
+    >
+      {children}
+    </ul>
+  )
+}
+
+type ReservationsPageProps = {
+  isAdmin: boolean
+}
+
+function ReservationsPage({ isAdmin }: ReservationsPageProps) {
   const [reservations, setReservations] = useState<Reservation[] | null>(null)
   const [hasError, setHasError] = useState(false)
   const [selected, setSelected] = useState<Reservation | null>(null)
   const [cancelling, setCancelling] = useState<Reservation | null>(null)
   const [cancelError, setCancelError] = useState('')
 
-  // Loads the reservations once, when the page first appears
+  // Loads the reservations once, when the page first appears; admins get those of everyone
   useEffect(() => {
-    fetchMyReservations()
+    ;(isAdmin ? fetchAllReservations() : fetchMyReservations())
       .then(setReservations)
       .catch(() => setHasError(true))
-  }, [])
+  }, [isAdmin])
 
   const now = new Date()
 
@@ -45,13 +139,57 @@ function ReservationsPage() {
     }
   }
 
+  function renderCard(reservation: Reservation) {
+    return (
+      <ReservationCard
+        key={reservation.reservation_id}
+        reservation={reservation}
+        isRunning={isRunning(reservation, now)}
+        isAdmin={isAdmin}
+        onShowItems={() => setSelected(reservation)}
+        onCancel={() => setCancelling(reservation)}
+      />
+    )
+  }
+
+  // One block with a title, used by admins to split running from upcoming reservations
+  function renderGroup(title: string, group: Reservation[], emptyText: string) {
+    return (
+      <section className="flex flex-col gap-4 rounded-xl bg-gray-100 p-4 sm:p-5">
+        <h2 className="text-lg font-semibold">
+          {title} <span className="font-normal text-gray-600">({group.length})</span>
+        </h2>
+        {group.length === 0 ? (
+          <p className="text-gray-600">{emptyText}</p>
+        ) : (
+          <ScrollingList>{group.map(renderCard)}</ScrollingList>
+        )}
+      </section>
+    )
+  }
+
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="text-2xl font-semibold">Mijn Reserveringen</h1>
+      <h1 className="text-2xl font-semibold">{isAdmin ? 'Reserveringen' : 'Mijn Reserveringen'}</h1>
 
       {hasError && <FormMessage message={{ text: 'De reserveringen konden niet geladen worden.', isError: true }} />}
 
-      {reservations?.length === 0 && (
+      {reservations && isAdmin && (
+        <div className="grid gap-6 lg:grid-cols-2 lg:items-start">
+          {renderGroup(
+            'Lopende reserveringen',
+            reservations.filter((reservation) => isRunning(reservation, now)),
+            'Er zijn geen lopende reserveringen.',
+          )}
+          {renderGroup(
+            'Aankomende reserveringen',
+            reservations.filter((reservation) => !isRunning(reservation, now)),
+            'Er zijn geen aankomende reserveringen.',
+          )}
+        </div>
+      )}
+
+      {reservations && !isAdmin && reservations.length === 0 && (
         <p className="text-gray-600">
           Je hebt geen lopende of komende reserveringen.{' '}
           <a className="text-primary hover:underline" href="/reserve">
@@ -60,49 +198,23 @@ function ReservationsPage() {
         </p>
       )}
 
-      {reservations && reservations.length > 0 && (
-        <ul className="flex flex-col gap-4">
-          {reservations.map((reservation) => {
-            const isRunning = new Date(`${reservation.start_date}T${reservation.start_time}`) <= now
-            const total = reservation.items.reduce((sum, item) => sum + item.count, 0)
-            return (
-              <li
-                className="flex flex-wrap items-center justify-between gap-4 rounded-xl bg-white p-5 shadow"
-                key={reservation.reservation_id}
-              >
-                <div className="min-w-0">
-                  <p className="font-semibold break-words">
-                    {reservation.department_name ?? 'Geen afdeling'} - {formatStart(reservation)} -{' '}
-                    {formatEnd(reservation)}
-                  </p>
-                  <p className="text-sm text-gray-600">
-                    {isRunning ? 'Bezig' : 'Gepland'} · {total} {total === 1 ? 'item' : 'items'}
-                  </p>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <Button variant="secondary" onClick={() => setSelected(reservation)}>
-                    Bekijk items
-                  </Button>
-                  {/* A reservation that has started can no longer be cancelled */}
-                  <Button
-                    variant="danger"
-                    disabled={isRunning}
-                    title={isRunning ? 'Een lopende reservering kan niet geannuleerd worden' : undefined}
-                    onClick={() => setCancelling(reservation)}
-                  >
-                    Annuleren
-                  </Button>
-                </div>
-              </li>
-            )
-          })}
-        </ul>
+      {reservations && !isAdmin && reservations.length > 0 && (
+        <ul className="flex flex-col gap-4">{reservations.map(renderCard)}</ul>
       )}
 
       {selected && (
         <Modal title={selected.department_name ?? 'Reservering'} onClose={() => setSelected(null)}>
           <p className="mb-4 text-sm text-gray-600">
+            {isAdmin && <>{selected.user_name} · </>}
             {formatStart(selected)} tot {formatEnd(selected)}
+            {isAdmin && selected.department_mail && (
+              <>
+                <br />
+                <a className="break-all text-primary hover:underline" href={`mailto:${selected.department_mail}`}>
+                  {selected.department_mail}
+                </a>
+              </>
+            )}
           </p>
           <ul className="divide-y divide-gray-200 border-y border-gray-200">
             {selected.items.map((item) => (
@@ -119,10 +231,17 @@ function ReservationsPage() {
         <Modal title="Reservering annuleren" onClose={closeCancel}>
           <div className="flex flex-col gap-5">
             <p>
-              Weet je zeker dat je de reservering voor{' '}
+              Weet je zeker dat je de reservering
+              {isAdmin && <> van <strong>{cancelling.user_name}</strong></>} voor{' '}
               <strong>{cancelling.department_name ?? 'geen afdeling'}</strong> van {formatStart(cancelling)} tot{' '}
               {formatEnd(cancelling)} wilt annuleren?
             </p>
+
+            {isAdmin && isRunning(cancelling, now) && (
+              <p className="text-sm text-gray-600">
+                Deze reservering is al bezig. Na het annuleren zijn de items meteen weer beschikbaar voor anderen.
+              </p>
+            )}
 
             {cancelError && <FormMessage message={{ text: cancelError, isError: true }} />}
 
