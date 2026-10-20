@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 're
 import Button from '../../components/ui/Button.tsx'
 import FormMessage from '../../components/ui/FormMessage.tsx'
 import Modal from '../../components/ui/Modal.tsx'
+import SearchBar from '../../components/ui/SearchBar.tsx'
 import { formatMoment } from '../reserve/period.ts'
 import { cancelReservation, fetchAllReservations, fetchMyReservations, type Reservation } from './api.ts'
 
@@ -16,6 +17,23 @@ function formatEnd(reservation: Reservation) {
 
 function isRunning(reservation: Reservation, now: Date) {
   return new Date(`${reservation.start_date}T${reservation.start_time}`) <= now
+}
+
+// Matches on everything an admin sees of a reservation: who, which department, when and which items
+function matchesSearch(reservation: Reservation, search: string) {
+  const query = search.trim().toLowerCase()
+  if (!query) {
+    return true
+  }
+  const fields = [
+    reservation.user_name,
+    reservation.department_name ?? '',
+    reservation.department_mail ?? '',
+    formatStart(reservation),
+    formatEnd(reservation),
+    ...reservation.items.map((item) => item.name),
+  ]
+  return fields.some((field) => field.toLowerCase().includes(query))
 }
 
 type ReservationCardProps = {
@@ -114,6 +132,8 @@ function ReservationsPage({ isAdmin }: ReservationsPageProps) {
   const [selected, setSelected] = useState<Reservation | null>(null)
   const [cancelling, setCancelling] = useState<Reservation | null>(null)
   const [cancelError, setCancelError] = useState('')
+  const [runningSearch, setRunningSearch] = useState('')
+  const [upcomingSearch, setUpcomingSearch] = useState('')
 
   // Loads the reservations once, when the page first appears; admins get those of everyone
   useEffect(() => {
@@ -152,17 +172,34 @@ function ReservationsPage({ isAdmin }: ReservationsPageProps) {
     )
   }
 
-  // One block with a title, used by admins to split running from upcoming reservations
-  function renderGroup(title: string, group: Reservation[], emptyText: string) {
+  // One block with a title and its own search, used by admins to split running from upcoming reservations
+  function renderGroup(
+    title: string,
+    group: Reservation[],
+    emptyText: string,
+    search: string,
+    onSearchChange: (search: string) => void,
+  ) {
+    const visible = group.filter((reservation) => matchesSearch(reservation, search))
+
     return (
       <section className="flex flex-col gap-4 rounded-xl bg-gray-100 p-4 sm:p-5">
         <h2 className="text-lg font-semibold">
           {title} <span className="font-normal text-gray-600">({group.length})</span>
         </h2>
+        {group.length > 0 && (
+          <SearchBar
+            placeholder={`Zoeken in ${title.toLowerCase()}…`}
+            value={search}
+            onChange={(event) => onSearchChange(event.target.value)}
+          />
+        )}
         {group.length === 0 ? (
           <p className="text-gray-600">{emptyText}</p>
+        ) : visible.length === 0 ? (
+          <p className="text-gray-600">Geen resultaten gevonden</p>
         ) : (
-          <ScrollingList>{group.map(renderCard)}</ScrollingList>
+          <ScrollingList>{visible.map(renderCard)}</ScrollingList>
         )}
       </section>
     )
@@ -180,11 +217,15 @@ function ReservationsPage({ isAdmin }: ReservationsPageProps) {
             'Lopende reserveringen',
             reservations.filter((reservation) => isRunning(reservation, now)),
             'Er zijn geen lopende reserveringen.',
+            runningSearch,
+            setRunningSearch,
           )}
           {renderGroup(
             'Aankomende reserveringen',
             reservations.filter((reservation) => !isRunning(reservation, now)),
             'Er zijn geen aankomende reserveringen.',
+            upcomingSearch,
+            setUpcomingSearch,
           )}
         </div>
       )}
