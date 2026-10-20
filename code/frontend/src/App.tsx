@@ -33,6 +33,11 @@ function App() {
     return <LoginPage onLogin={setUser} />
   }
 
+  // The root path has no page of its own, so send it to the reserve page
+  if (window.location.pathname === '/') {
+    window.history.replaceState(null, '', '/reserve')
+  }
+
   const path = window.location.pathname
   let page = <h1 className="text-2xl font-semibold">Welkom, {user.firstname}</h1>
   if (path === '/reserve') {
