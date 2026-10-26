@@ -157,6 +157,29 @@ def cancel_reservation(reservation_id: int, current_user: CurrentUser, db: DbSes
     db.commit()
 
 
+@router.post(
+    "/{reservation_id}/return",
+    response_model=ReservationResponse,
+    dependencies=[Depends(get_admin_user)],
+)
+def return_reservation(reservation_id: int, current_user: CurrentUser, db: DbSession):
+    """Marks the items of a running reservation as given back, by letting the reservation end now.
+
+    The reservation is kept as history, but its items are free again right away.
+    """
+    reservation = get_accessible_reservation(db, reservation_id, current_user)
+    now = datetime.now().replace(second=0, microsecond=0)
+    if datetime.combine(reservation.start_date, reservation.start_time) > now:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Deze reservering is nog niet begonnen")
+    if datetime.combine(reservation.end_date, reservation.end_time) <= now:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Deze reservering is al afgelopen")
+
+    reservation.end_date = now.date()
+    reservation.end_time = now.time()
+    db.commit()
+    return reservation
+
+
 def check_reservation(
     db: Session, data: ReservationInput, exclude_reservation_id: int | None = None
 ) -> tuple[Department, dict[int, int]]:

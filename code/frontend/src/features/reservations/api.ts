@@ -33,3 +33,8 @@ export function fetchAllReservations(): Promise<Reservation[]> {
 export function cancelReservation(reservationId: number): Promise<void> {
   return request(`/api/reservations/${reservationId}`, 'DELETE')
 }
+
+// Marks the items of a running reservation as given back, only for admins
+export function returnReservation(reservationId: number): Promise<void> {
+  return request(`/api/reservations/${reservationId}/return`, 'POST')
+}

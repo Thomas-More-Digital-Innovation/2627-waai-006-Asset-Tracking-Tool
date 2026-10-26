@@ -5,7 +5,14 @@ import Modal from '../../components/ui/Modal.tsx'
 import SearchBar from '../../components/ui/SearchBar.tsx'
 import { startEditing } from '../reserve/cart.ts'
 import { formatMoment } from '../reserve/period.ts'
-import { cancelReservation, fetchAllReservations, fetchMyReservations, type Reservation } from './api.ts'
+import {
+  cancelReservation,
+  fetchAllReservations,
+  fetchMyReservations,
+  returnReservation,
+  type Reservation,
+  type ReservedItem,
+} from './api.ts'
 
 // The backend sends times as "09:00:00", only the hours and minutes are shown
 function formatStart(reservation: Reservation) {
@@ -51,16 +58,34 @@ function matchesSearch(reservation: Reservation, search: string) {
   return fields.some((field) => field.toLowerCase().includes(query))
 }
 
+// The items of a reservation with their article number and how many
+function ItemList({ items }: { items: ReservedItem[] }) {
+  return (
+    <ul className="divide-y divide-gray-200 border-y border-gray-200">
+      {items.map((item) => (
+        <li className="flex items-center justify-between gap-4 py-3" key={item.item_id}>
+          <span className="font-medium break-words">
+            {item.name}
+            {item.article_number && <> - {item.article_number}</>}
+          </span>
+          <span className="shrink-0 text-gray-700">{item.count}×</span>
+        </li>
+      ))}
+    </ul>
+  )
+}
+
 type ReservationCardProps = {
   reservation: Reservation
   isRunning: boolean
-  // Admins see who placed the reservation and can also change or cancel a running one
+  // Admins see who placed the reservation and can also change a running one or confirm its items are given back
   isAdmin: boolean
   onShowItems: () => void
   onCancel: () => void
+  onReturn: () => void
 }
 
-function ReservationCard({ reservation, isRunning, isAdmin, onShowItems, onCancel }: ReservationCardProps) {
+function ReservationCard({ reservation, isRunning, isAdmin, onShowItems, onCancel, onReturn }: ReservationCardProps) {
   const total = reservation.items.reduce((sum, item) => sum + item.count, 0)
   const canChange = isAdmin || !isRunning
 
@@ -95,14 +120,14 @@ function ReservationCard({ reservation, isRunning, isAdmin, onShowItems, onCance
         >
           Wijzigen
         </Button>
-        <Button
-          variant="danger"
-          disabled={!canChange}
-          title={canChange ? undefined : 'Een lopende reservering kan niet geannuleerd worden'}
-          onClick={onCancel}
-        >
-          Annuleren
-        </Button>
+        {/* A running reservation is not cancelled but given back, which an admin confirms */}
+        {!isRunning ? (
+          <Button variant="danger" onClick={onCancel}>
+            Annuleren
+          </Button>
+        ) : (
+          isAdmin && <Button onClick={onReturn}>Teruggegeven</Button>
+        )}
       </div>
     </li>
   )
@@ -155,6 +180,8 @@ function ReservationsPage({ isAdmin }: ReservationsPageProps) {
   const [selected, setSelected] = useState<Reservation | null>(null)
   const [cancelling, setCancelling] = useState<Reservation | null>(null)
   const [cancelError, setCancelError] = useState('')
+  const [returning, setReturning] = useState<Reservation | null>(null)
+  const [returnError, setReturnError] = useState('')
   const [runningSearch, setRunningSearch] = useState('')
   const [upcomingSearch, setUpcomingSearch] = useState('')
 
@@ -182,6 +209,22 @@ function ReservationsPage({ isAdmin }: ReservationsPageProps) {
     }
   }
 
+  function closeReturn() {
+    setReturning(null)
+    setReturnError('')
+  }
+
+  async function handleReturn(reservation: Reservation) {
+    try {
+      await returnReservation(reservation.reservation_id)
+      // A returned reservation has ended, so it no longer belongs in the list
+      setReservations((current) => current?.filter((r) => r.reservation_id !== reservation.reservation_id) ?? null)
+      closeReturn()
+    } catch (caught) {
+      setReturnError(caught instanceof Error ? caught.message : 'Er ging iets mis.')
+    }
+  }
+
   function renderCard(reservation: Reservation) {
     return (
       <ReservationCard
@@ -191,6 +234,7 @@ function ReservationsPage({ isAdmin }: ReservationsPageProps) {
         isAdmin={isAdmin}
         onShowItems={() => setSelected(reservation)}
         onCancel={() => setCancelling(reservation)}
+        onReturn={() => setReturning(reservation)}
       />
     )
   }
@@ -280,17 +324,7 @@ function ReservationsPage({ isAdmin }: ReservationsPageProps) {
               </>
             )}
           </p>
-          <ul className="divide-y divide-gray-200 border-y border-gray-200">
-            {selected.items.map((item) => (
-              <li className="flex items-center justify-between gap-4 py-3" key={item.item_id}>
-                <span className="font-medium break-words">
-                  {item.name}
-                  {item.article_number && <> - {item.article_number}</>}
-                </span>
-                <span className="shrink-0 text-gray-700">{item.count}×</span>
-              </li>
-            ))}
-          </ul>
+          <ItemList items={selected.items} />
         </Modal>
       )}
 
@@ -304,12 +338,6 @@ function ReservationsPage({ isAdmin }: ReservationsPageProps) {
               {formatEnd(cancelling)} wilt annuleren?
             </p>
 
-            {isAdmin && isRunning(cancelling, now) && (
-              <p className="text-sm text-gray-600">
-                Deze reservering is al bezig. Na het annuleren zijn de items meteen weer beschikbaar voor anderen.
-              </p>
-            )}
-
             {cancelError && <FormMessage message={{ text: cancelError, isError: true }} />}
 
             <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
@@ -319,6 +347,32 @@ function ReservationsPage({ isAdmin }: ReservationsPageProps) {
               <Button variant="danger" onClick={() => handleCancel(cancelling)}>
                 Ja, annuleren
               </Button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {returning && (
+        <Modal title="Items teruggegeven" onClose={closeReturn}>
+          <div className="flex flex-col gap-5">
+            <p>
+              Controleer of alle items van <strong>{returning.user_name}</strong> voor{' '}
+              <strong>{returning.department_name ?? 'geen afdeling'}</strong> terug zijn.
+            </p>
+
+            <ItemList items={returning.items} />
+
+            <p className="text-sm text-gray-600">
+              Na het bevestigen is de reservering afgelopen en zijn de items meteen weer beschikbaar voor anderen.
+            </p>
+
+            {returnError && <FormMessage message={{ text: returnError, isError: true }} />}
+
+            <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+              <Button variant="secondary" onClick={closeReturn}>
+                Terug
+              </Button>
+              <Button onClick={() => handleReturn(returning)}>Bevestig teruggave</Button>
             </div>
           </div>
         </Modal>
