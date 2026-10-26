@@ -11,6 +11,7 @@ from ..availability import reserved_per_item
 from ..dependencies import CurrentUser, DbSession, get_admin_user
 from ..images import delete_image, image_path, save_image
 from ..models import Category, Item
+from .reservations import get_accessible_reservation
 
 router = APIRouter(prefix="/items", tags=["items"])
 
@@ -82,13 +83,17 @@ def list_available_items(
     start_time: time,
     end_date: date,
     end_time: time,
+    # While changing a reservation its own items count as free
+    reservation_id: int | None = None,
 ):
     start = datetime.combine(start_date, start_time)
     end = datetime.combine(end_date, end_time)
     if end <= start:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Het einde moet na het begin liggen")
+    if reservation_id is not None:
+        get_accessible_reservation(db, reservation_id, current_user)
 
-    reserved = reserved_per_item(db, start, end)
+    reserved = reserved_per_item(db, start, end, reservation_id)
     items = db.scalars(select(Item).where(Item.is_active).order_by(Item.name)).all()
     result = []
     for item in items:

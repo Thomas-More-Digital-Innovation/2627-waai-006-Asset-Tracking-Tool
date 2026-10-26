@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from ..availability import reserved_per_item
 from ..dependencies import CurrentUser, DbSession, get_admin_user
-from ..models import Department, Item, Reservation, ReservationItem
+from ..models import Department, Item, Reservation, ReservationItem, User
 from .settings import get_application_setting
 
 router = APIRouter(prefix="/reservations", tags=["reservations"])
@@ -50,6 +50,7 @@ class ReservationOverview(BaseModel):
     start_time: time
     end_date: date
     end_time: time
+    department_id: int | None
     department_name: str | None
     department_mail: str | None
     # Who placed the reservation, shown to admins who see the reservations of everyone
@@ -99,6 +100,7 @@ def list_current_reservations(db: Session, user_id: int | None = None) -> list[R
             start_time=reservation.start_time,
             end_date=reservation.end_date,
             end_time=reservation.end_time,
+            department_id=reservation.department_id,
             department_name=reservation.department.name if reservation.department else None,
             department_mail=reservation.department.mail if reservation.department else None,
             user_name=f"{reservation.user.firstname} {reservation.user.lastname}",
@@ -121,18 +123,27 @@ def list_all_reservations(db: DbSession):
     return list_current_reservations(db)
 
 
+def get_accessible_reservation(db: Session, reservation_id: int, user: User) -> Reservation:
+    """Returns a reservation of the user; an admin can reach the reservation of anyone."""
+    reservation = db.get(Reservation, reservation_id)
+    # Someone else's reservation is answered the same as a missing one, so it does not reveal that it exists
+    if reservation is None or (reservation.user_id != user.user_id and not user.is_admin):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Reservering niet gevonden")
+    return reservation
+
+
+def get_changeable_reservation(db: Session, reservation_id: int, user: User, action: str) -> Reservation:
+    """Returns a reservation the user may cancel or change: one that has not started yet, or any for an admin."""
+    reservation = get_accessible_reservation(db, reservation_id, user)
+    if not user.is_admin and datetime.combine(reservation.start_date, reservation.start_time) <= datetime.now():
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Een lopende reservering kan niet {action} worden")
+    return reservation
+
+
 @router.delete("/{reservation_id}", status_code=status.HTTP_204_NO_CONTENT)
 def cancel_reservation(reservation_id: int, current_user: CurrentUser, db: DbSession):
     """Cancels a reservation that has not started yet. An admin can cancel any reservation, also a running one."""
-    reservation = db.get(Reservation, reservation_id)
-    # Someone else's reservation is answered the same as a missing one, so it does not reveal that it exists
-    if reservation is None or (reservation.user_id != current_user.user_id and not current_user.is_admin):
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Reservering niet gevonden")
-    if (
-        not current_user.is_admin
-        and datetime.combine(reservation.start_date, reservation.start_time) <= datetime.now()
-    ):
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Een lopende reservering kan niet geannuleerd worden")
+    reservation = get_changeable_reservation(db, reservation_id, current_user, "geannuleerd")
 
     for line in reservation.reservation_items:
         db.delete(line)
@@ -140,8 +151,13 @@ def cancel_reservation(reservation_id: int, current_user: CurrentUser, db: DbSes
     db.commit()
 
 
-@router.post("", response_model=ReservationResponse, status_code=status.HTTP_201_CREATED)
-def create_reservation(data: ReservationInput, current_user: CurrentUser, db: DbSession):
+def check_reservation(
+    db: Session, data: ReservationInput, exclude_reservation_id: int | None = None
+) -> tuple[Department, dict[int, int]]:
+    """Checks the period, department and items of a reservation and returns the department and the count per item.
+
+    When an existing reservation is changed, its own items are not counted as taken.
+    """
     start = datetime.combine(data.start_date, data.start_time)
     end = datetime.combine(data.end_date, data.end_time)
     if end <= start:
@@ -166,7 +182,7 @@ def create_reservation(data: ReservationInput, current_user: CurrentUser, db: Db
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Een van de items bestaat niet meer")
 
     # Checked again here, because someone else may have reserved since the page was loaded
-    reserved = reserved_per_item(db, start, end)
+    reserved = reserved_per_item(db, start, end, exclude_reservation_id)
     shortages = [
         f"{item.name} (nog {max(item.count - reserved.get(item.item_id, 0), 0)} beschikbaar)"
         for item in items
@@ -174,6 +190,13 @@ def create_reservation(data: ReservationInput, current_user: CurrentUser, db: Db
     ]
     if shortages:
         raise HTTPException(status.HTTP_409_CONFLICT, "Niet meer genoeg beschikbaar van: " + ", ".join(shortages))
+
+    return department, wanted
+
+
+@router.post("", response_model=ReservationResponse, status_code=status.HTTP_201_CREATED)
+def create_reservation(data: ReservationInput, current_user: CurrentUser, db: DbSession):
+    department, wanted = check_reservation(db, data)
 
     reservation = Reservation(
         user_id=current_user.user_id,
@@ -186,5 +209,25 @@ def create_reservation(data: ReservationInput, current_user: CurrentUser, db: Db
         reservation_items=[ReservationItem(item_id=item_id, count=count) for item_id, count in wanted.items()],
     )
     db.add(reservation)
+    db.commit()
+    return reservation
+
+
+@router.put("/{reservation_id}", response_model=ReservationResponse)
+def update_reservation(reservation_id: int, data: ReservationInput, current_user: CurrentUser, db: DbSession):
+    """Changes the period, department and items of a reservation that has not started yet, or any for an admin."""
+    reservation = get_changeable_reservation(db, reservation_id, current_user, "gewijzigd")
+    department, wanted = check_reservation(db, data, reservation.reservation_id)
+
+    # The old lines are replaced by the new ones; the owner and the moment of placing stay the same
+    for line in reservation.reservation_items:
+        db.delete(line)
+    db.flush()
+    reservation.department_id = department.department_id
+    reservation.start_date = data.start_date
+    reservation.start_time = data.start_time
+    reservation.end_date = data.end_date
+    reservation.end_time = data.end_time
+    reservation.reservation_items = [ReservationItem(item_id=item_id, count=count) for item_id, count in wanted.items()]
     db.commit()
     return reservation

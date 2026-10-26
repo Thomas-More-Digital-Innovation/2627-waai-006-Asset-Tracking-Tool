@@ -12,6 +12,7 @@ export type Reservation = {
   start_time: string
   end_date: string
   end_time: string
+  department_id: number | null
   department_name: string | null
   department_mail: string | null
   user_name: string

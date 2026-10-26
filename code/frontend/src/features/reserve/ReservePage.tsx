@@ -17,27 +17,31 @@ type AvailabilityProps = {
   period: Period
   categoryId: number
   showCart: boolean
+  // The reservation that is being changed, if any
+  reservationId: number | null
 }
 
-function Availability({ period, categoryId, showCart }: AvailabilityProps) {
+function Availability({ period, categoryId, showCart, reservationId }: AvailabilityProps) {
   const [categories, setCategories] = useState<Category[] | null>(null)
   const [items, setItems] = useState<AvailableItem[]>([])
   const [hasError, setHasError] = useState(false)
-  const [storedCart, setStoredCart] = useState<Cart>(() => loadCart(period))
+  const [storedCart, setStoredCart] = useState<Cart>(() => loadCart(period, reservationId))
   const [search, setSearch] = useState('')
 
   // Loads the categories and the available items once, when this part first appears
   useEffect(() => {
-    Promise.all([fetchCategories(), fetchAvailableItems(period)])
+    Promise.all([fetchCategories(), fetchAvailableItems(period, reservationId)])
       .then(([loadedCategories, loadedItems]) => {
         setCategories(loadedCategories)
         setItems(loadedItems)
       })
       .catch(() => setHasError(true))
-  }, [period])
+  }, [period, reservationId])
 
-  // Every link keeps the chosen period in the address
-  const periodQuery = new URLSearchParams(period).toString()
+  // Every link keeps the chosen period, and the reservation that is being changed, in the address
+  const periodQuery = new URLSearchParams(
+    reservationId ? { ...period, reservation: String(reservationId) } : period,
+  ).toString()
 
   // The chosen period on the left, with room for the cart link on the right
   function renderHeader(cartLink?: ReactNode) {
@@ -85,7 +89,7 @@ function Availability({ period, categoryId, showCart }: AvailabilityProps) {
   function changeCart(itemId: number, count: number) {
     const next = { ...cart, [itemId]: Math.max(count, 0) }
     setStoredCart(next)
-    saveCart(period, next)
+    saveCart(period, next, reservationId)
   }
 
   const category = categories.find((candidate) => candidate.category_id === categoryId)
@@ -100,6 +104,7 @@ function Availability({ period, categoryId, showCart }: AvailabilityProps) {
           period={period}
           items={items}
           cart={cart}
+          reservationId={reservationId}
           onChange={changeCart}
           onReserved={() => {
             clearCart()
@@ -261,15 +266,30 @@ function ReservePage() {
   const [params] = useState(() => new URLSearchParams(window.location.search))
   const [period] = useState(() => readPeriod(params))
   const view = params.get('view')
+  const reservationId = Number(params.get('reservation')) || null
 
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="text-2xl font-semibold">Reserveer</h1>
+      <h1 className="text-2xl font-semibold">{reservationId ? 'Reservering wijzigen' : 'Reserveer'}</h1>
+
+      {reservationId && (
+        <p className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-gray-600">
+          Je past een bestaande reservering aan. Wijzigingen worden pas opgeslagen in het winkelmandje.
+          <a className="text-primary hover:underline" href="/reservations" onClick={clearCart}>
+            Stoppen met wijzigen
+          </a>
+        </p>
+      )}
 
       {!period || view === 'period' ? (
-        <PeriodForm initial={period} />
+        <PeriodForm initial={period} reservationId={reservationId} />
       ) : (
-        <Availability period={period} categoryId={Number(params.get('category'))} showCart={view === 'cart'} />
+        <Availability
+          period={period}
+          categoryId={Number(params.get('category'))}
+          showCart={view === 'cart'}
+          reservationId={reservationId}
+        />
       )}
     </div>
   )

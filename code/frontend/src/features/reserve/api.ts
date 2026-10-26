@@ -42,10 +42,24 @@ export function fetchDepartments(): Promise<Department[]> {
   return request('/api/departments')
 }
 
-export function fetchAvailableItems(period: Period): Promise<AvailableItem[]> {
-  return request(`/api/items/available?${new URLSearchParams(period)}`)
+// While a reservation is changed, its own items count as available
+export function fetchAvailableItems(period: Period, reservationId: number | null): Promise<AvailableItem[]> {
+  const query = new URLSearchParams(period)
+  if (reservationId) {
+    query.set('reservation_id', String(reservationId))
+  }
+  return request(`/api/items/available?${query}`)
 }
 
 export async function createReservation(period: Period, departmentId: number, items: ReservationLine[]): Promise<void> {
   await request('/api/reservations', 'POST', { ...period, department_id: departmentId, items })
+}
+
+export async function updateReservation(
+  reservationId: number,
+  period: Period,
+  departmentId: number,
+  items: ReservationLine[],
+): Promise<void> {
+  await request(`/api/reservations/${reservationId}`, 'PUT', { ...period, department_id: departmentId, items })
 }

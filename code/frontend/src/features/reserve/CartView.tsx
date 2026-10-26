@@ -4,21 +4,34 @@ import Button from '../../components/ui/Button.tsx'
 import Dropdown from '../../components/ui/Dropdown.tsx'
 import FormMessage from '../../components/ui/FormMessage.tsx'
 import QuantityStepper from '../../components/ui/QuantityStepper.tsx'
-import { createReservation, fetchDepartments, type AvailableItem, type Department, type Period } from './api.ts'
-import type { Cart } from './cart.ts'
+import {
+  createReservation,
+  fetchDepartments,
+  updateReservation,
+  type AvailableItem,
+  type Department,
+  type Period,
+} from './api.ts'
+import { loadEditedDepartment, type Cart } from './cart.ts'
 
 type CartViewProps = {
   period: Period
   items: AvailableItem[]
   cart: Cart
+  // The reservation that is being changed; without one a new reservation is placed
+  reservationId: number | null
   onChange: (itemId: number, count: number) => void
   onReserved: () => void
   backHref: string
 }
 
-function CartView({ period, items, cart, onChange, onReserved, backHref }: CartViewProps) {
+function CartView({ period, items, cart, reservationId, onChange, onReserved, backHref }: CartViewProps) {
   const [departments, setDepartments] = useState<Department[]>([])
-  const [departmentId, setDepartmentId] = useState('')
+  // A reservation that is being changed starts with the department it was placed for
+  const [departmentId, setDepartmentId] = useState(() => {
+    const editedDepartment = reservationId ? loadEditedDepartment(reservationId) : null
+    return editedDepartment ? String(editedDepartment) : ''
+  })
   const [error, setError] = useState('')
   const [isDone, setIsDone] = useState(false)
 
@@ -34,12 +47,13 @@ function CartView({ period, items, cart, onChange, onReserved, backHref }: CartV
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     // Prevents the browser from reloading the page when the form is submitted
     event.preventDefault()
+    const reservationLines = lines.map((item) => ({ item_id: item.item_id, count: cart[item.item_id] }))
     try {
-      await createReservation(
-        period,
-        Number(departmentId),
-        lines.map((item) => ({ item_id: item.item_id, count: cart[item.item_id] })),
-      )
+      if (reservationId) {
+        await updateReservation(reservationId, period, Number(departmentId), reservationLines)
+      } else {
+        await createReservation(period, Number(departmentId), reservationLines)
+      }
       onReserved()
       setIsDone(true)
     } catch (caught) {
@@ -50,9 +64,11 @@ function CartView({ period, items, cart, onChange, onReserved, backHref }: CartV
   if (isDone) {
     return (
       <section className="flex w-full max-w-2xl flex-col gap-3 rounded-xl bg-white p-6 shadow">
-        <h2 className="text-lg font-semibold">Je reservering is geplaatst</h2>
-        <a className="self-start text-primary hover:underline" href="/reserve">
-          Nieuwe reservering maken
+        <h2 className="text-lg font-semibold">
+          {reservationId ? 'Je reservering is gewijzigd' : 'Je reservering is geplaatst'}
+        </h2>
+        <a className="self-start text-primary hover:underline" href={reservationId ? '/reservations' : '/reserve'}>
+          {reservationId ? 'Terug naar reserveringen' : 'Nieuwe reservering maken'}
         </a>
       </section>
     )
@@ -110,7 +126,7 @@ function CartView({ period, items, cart, onChange, onReserved, backHref }: CartV
             {error && <FormMessage message={{ text: error, isError: true }} />}
 
             <Button className="sm:self-start" type="submit">
-              Reserveren
+              {reservationId ? 'Wijzigingen opslaan' : 'Reserveren'}
             </Button>
           </>
         )}

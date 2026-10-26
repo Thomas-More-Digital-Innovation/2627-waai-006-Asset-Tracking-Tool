@@ -31,9 +31,11 @@ function firstDateOn(weekday?: number | null) {
 type PeriodFormProps = {
   // Fills in the form when the visitor comes back to change the period
   initial?: Period | null
+  // The reservation that is being changed, kept in the address so the cart stays the same
+  reservationId?: number | null
 }
 
-function PeriodForm({ initial }: PeriodFormProps) {
+function PeriodForm({ initial, reservationId }: PeriodFormProps) {
   const [settings, setSettings] = useState<ApplicationSettings | null>(null)
   const [isLoaded, setIsLoaded] = useState(false)
   const [error, setError] = useState('')
@@ -84,7 +86,9 @@ function PeriodForm({ initial }: PeriodFormProps) {
     }
 
     // The chosen period goes into the address, so it survives moving between categories
-    window.location.search = new URLSearchParams(period).toString()
+    window.location.search = new URLSearchParams(
+      reservationId ? { ...period, reservation: String(reservationId) } : period,
+    ).toString()
   }
 
   // With a fixed weekday the calendar starts on the first such day and moves in steps of a week,

@@ -3,6 +3,7 @@ import Button from '../../components/ui/Button.tsx'
 import FormMessage from '../../components/ui/FormMessage.tsx'
 import Modal from '../../components/ui/Modal.tsx'
 import SearchBar from '../../components/ui/SearchBar.tsx'
+import { startEditing } from '../reserve/cart.ts'
 import { formatMoment } from '../reserve/period.ts'
 import { cancelReservation, fetchAllReservations, fetchMyReservations, type Reservation } from './api.ts'
 
@@ -13,6 +14,20 @@ function formatStart(reservation: Reservation) {
 
 function formatEnd(reservation: Reservation) {
   return formatMoment(reservation.end_date, reservation.end_time.slice(0, 5))
+}
+
+// Puts the reservation in the cart and opens it on the reserve page, where everything can be changed
+function editReservation(reservation: Reservation) {
+  const period = {
+    start_date: reservation.start_date,
+    start_time: reservation.start_time.slice(0, 5),
+    end_date: reservation.end_date,
+    end_time: reservation.end_time.slice(0, 5),
+  }
+  const cart = Object.fromEntries(reservation.items.map((item) => [item.item_id, item.count]))
+  startEditing(reservation.reservation_id, period, cart, reservation.department_id)
+  const query = new URLSearchParams({ ...period, reservation: String(reservation.reservation_id), view: 'cart' })
+  window.location.href = `/reserve?${query}`
 }
 
 function isRunning(reservation: Reservation, now: Date) {
@@ -39,7 +54,7 @@ function matchesSearch(reservation: Reservation, search: string) {
 type ReservationCardProps = {
   reservation: Reservation
   isRunning: boolean
-  // Admins see who placed the reservation and can also cancel a running one
+  // Admins see who placed the reservation and can also change or cancel a running one
   isAdmin: boolean
   onShowItems: () => void
   onCancel: () => void
@@ -47,7 +62,7 @@ type ReservationCardProps = {
 
 function ReservationCard({ reservation, isRunning, isAdmin, onShowItems, onCancel }: ReservationCardProps) {
   const total = reservation.items.reduce((sum, item) => sum + item.count, 0)
-  const canCancel = isAdmin || !isRunning
+  const canChange = isAdmin || !isRunning
 
   return (
     <li className="flex flex-wrap items-center justify-between gap-4 rounded-xl bg-white p-5 shadow">
@@ -73,9 +88,17 @@ function ReservationCard({ reservation, isRunning, isAdmin, onShowItems, onCance
           Bekijk items
         </Button>
         <Button
+          variant="secondary"
+          disabled={!canChange}
+          title={canChange ? undefined : 'Een lopende reservering kan niet gewijzigd worden'}
+          onClick={() => editReservation(reservation)}
+        >
+          Wijzigen
+        </Button>
+        <Button
           variant="danger"
-          disabled={!canCancel}
-          title={canCancel ? undefined : 'Een lopende reservering kan niet geannuleerd worden'}
+          disabled={!canChange}
+          title={canChange ? undefined : 'Een lopende reservering kan niet geannuleerd worden'}
           onClick={onCancel}
         >
           Annuleren

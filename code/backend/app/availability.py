@@ -16,10 +16,15 @@ def busiest_moment(lines, start: datetime) -> int:
     return max(sum(line.count for line in lines if line.start <= moment < line.end) for moment in moments)
 
 
-def reserved_per_item(db: Session, start: datetime, end: datetime) -> dict[int, int]:
-    """Returns per item how many are already taken at the busiest moment of the period."""
+def reserved_per_item(
+    db: Session, start: datetime, end: datetime, exclude_reservation_id: int | None = None
+) -> dict[int, int]:
+    """Returns per item how many are already taken at the busiest moment of the period.
+
+    A reservation that is being changed is left out, so its own items count as free.
+    """
     # Every line of every reservation that overlaps the period: which item, how many, from when to when
-    lines = db.execute(
+    query = (
         select(
             ReservationItem.item_id,
             ReservationItem.count,
@@ -31,7 +36,10 @@ def reserved_per_item(db: Session, start: datetime, end: datetime) -> dict[int, 
             Reservation.start_date + Reservation.start_time < end,
             Reservation.end_date + Reservation.end_time > start,
         )
-    ).all()
+    )
+    if exclude_reservation_id is not None:
+        query = query.where(Reservation.reservation_id != exclude_reservation_id)
+    lines = db.execute(query).all()
 
     item_ids = {line.item_id for line in lines}
     return {
