@@ -41,6 +41,7 @@ class ReservationResponse(BaseModel):
 class ReservedItem(BaseModel):
     item_id: int
     name: str
+    article_number: str | None
     count: int
 
 
@@ -105,7 +106,12 @@ def list_current_reservations(db: Session, user_id: int | None = None) -> list[R
             department_mail=reservation.department.mail if reservation.department else None,
             user_name=f"{reservation.user.firstname} {reservation.user.lastname}",
             items=[
-                ReservedItem(item_id=line.item_id, name=line.item.name, count=line.count)
+                ReservedItem(
+                    item_id=line.item_id,
+                    name=line.item.name,
+                    article_number=line.item.article_number,
+                    count=line.count,
+                )
                 for line in reservation.reservation_items
             ],
         )

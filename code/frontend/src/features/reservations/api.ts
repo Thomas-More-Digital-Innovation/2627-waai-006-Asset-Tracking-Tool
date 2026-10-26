@@ -3,6 +3,7 @@ import { request } from '../../lib/request.ts'
 export type ReservedItem = {
   item_id: number
   name: string
+  article_number: string | null
   count: number
 }
 

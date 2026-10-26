@@ -46,7 +46,7 @@ function matchesSearch(reservation: Reservation, search: string) {
     reservation.department_mail ?? '',
     formatStart(reservation),
     formatEnd(reservation),
-    ...reservation.items.map((item) => item.name),
+    ...reservation.items.flatMap((item) => [item.name, item.article_number ?? '']),
   ]
   return fields.some((field) => field.toLowerCase().includes(query))
 }
@@ -283,7 +283,10 @@ function ReservationsPage({ isAdmin }: ReservationsPageProps) {
           <ul className="divide-y divide-gray-200 border-y border-gray-200">
             {selected.items.map((item) => (
               <li className="flex items-center justify-between gap-4 py-3" key={item.item_id}>
-                <span className="font-medium break-words">{item.name}</span>
+                <span className="font-medium break-words">
+                  {item.name}
+                  {item.article_number && <> - {item.article_number}</>}
+                </span>
                 <span className="shrink-0 text-gray-700">{item.count}×</span>
               </li>
             ))}
