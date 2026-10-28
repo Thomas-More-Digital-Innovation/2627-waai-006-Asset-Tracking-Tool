@@ -369,7 +369,7 @@ function ReservationsPage({ isAdmin }: ReservationsPageProps) {
             {returnError && <FormMessage message={{ text: returnError, isError: true }} />}
 
             <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-              <Button variant="secondary" onClick={closeReturn}>
+              <Button variant="neutral" onClick={closeReturn}>
                 Terug
               </Button>
               <Button onClick={() => handleReturn(returning)}>Bevestig teruggave</Button>

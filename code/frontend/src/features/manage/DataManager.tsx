@@ -320,7 +320,7 @@ function DataManager({ title, fields, load, create, update, remove, restore }: D
             {error && <FormMessage message={{ text: error, isError: true }} />}
 
             <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-              <Button variant="secondary" onClick={closeModals}>
+              <Button variant="neutral" onClick={closeModals}>
                 Annuleren
               </Button>
               <Button type="submit">Opslaan</Button>
@@ -339,7 +339,7 @@ function DataManager({ title, fields, load, create, update, remove, restore }: D
             {error && <FormMessage message={{ text: error, isError: true }} />}
 
             <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-              <Button variant="secondary" onClick={closeModals}>
+              <Button variant="neutral" onClick={closeModals}>
                 Annuleren
               </Button>
               <Button variant="danger" onClick={() => save(() => remove(deleting.id))}>
