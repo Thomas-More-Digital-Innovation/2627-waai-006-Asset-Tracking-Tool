@@ -21,7 +21,7 @@ import {
   updateItem,
   updateUser,
 } from './api.ts'
-import DataManager, { type DataField } from './DataManager.tsx'
+import DataManager, { type DataField, type DataValues } from './DataManager.tsx'
 
 const manageOptions = [
   { value: 'item', label: 'Materiaal' },
@@ -40,6 +40,11 @@ const itemFields: DataField[] = [
   { name: 'count', label: 'Aantal', type: 'number' },
   { name: 'detail', label: 'Omschrijving', optional: true, hideInTable: true },
 ]
+
+// An item is named by its name and, when it has one, its article number
+function describeItem(values: DataValues) {
+  return values.article_number ? `${values.name} - ${values.article_number}` : String(values.name)
+}
 
 const departmentFields: DataField[] = [
   { name: 'name', label: 'Naam' },
@@ -82,6 +87,7 @@ function ManagePage() {
           update={updateItem}
           remove={deleteItem}
           restore={activateItem}
+          describe={describeItem}
         />
       )}
 

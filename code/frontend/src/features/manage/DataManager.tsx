@@ -50,6 +50,8 @@ type DataManagerProps = {
   remove: (id: number) => Promise<void>
   // When given, inactive rows are shown with a button to make them active again
   restore?: (id: number) => Promise<void>
+  // The name of a row in the delete question, by default the first text field
+  describe?: (values: DataValues) => string
 }
 
 // Turns a stored value into the text shown in the table
@@ -67,7 +69,7 @@ function displayValue(value: DataValues[string] | undefined, options?: DropdownO
 const iconButtonClasses =
   'flex size-10 cursor-pointer items-center justify-center rounded-md text-gray-600 transition-colors hover:bg-gray-100'
 
-function DataManager({ title, fields, load, create, update, remove, restore }: DataManagerProps) {
+function DataManager({ title, fields, load, create, update, remove, restore, describe }: DataManagerProps) {
   const [rows, setRows] = useState<DataRow[]>([])
   // "new" means the add form is open, a row means that row is being edited
   const [editing, setEditing] = useState<DataRow | 'new' | null>(null)
@@ -151,6 +153,10 @@ function DataManager({ title, fields, load, create, update, remove, restore }: D
   const searchText = search.trim().toLowerCase()
   const tableFields = fields.filter((field) => !field.hideInTable)
   const searchFields = tableFields.filter((field) => field.type !== 'image')
+
+  function describeRow(row: DataRow) {
+    return describe ? describe(row.values) : displayValue(row.values[searchFields[0].name])
+  }
   const visibleRows = rows.filter((row) =>
     searchFields.some((field) =>
       displayValue(row.values[field.name], options[field.name]).toLowerCase().includes(searchText),
@@ -332,8 +338,8 @@ function DataManager({ title, fields, load, create, update, remove, restore }: D
       {deleting !== null && (
         <Modal title="Verwijderen" onClose={closeModals}>
           <div className="flex flex-col gap-5">
-            <p>
-              Weet je zeker dat je <strong>{displayValue(deleting.values[fields[0].name])}</strong> wilt verwijderen?
+            <p className="break-words">
+              Weet je zeker dat je <strong>{describeRow(deleting)}</strong> wilt verwijderen?
             </p>
 
             {error && <FormMessage message={{ text: error, isError: true }} />}
