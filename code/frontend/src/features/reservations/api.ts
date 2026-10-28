@@ -34,7 +34,12 @@ export function cancelReservation(reservationId: number): Promise<void> {
   return request(`/api/reservations/${reservationId}`, 'DELETE')
 }
 
-// Marks the items of a running reservation as given back, only for admins
-export function returnReservation(reservationId: number): Promise<void> {
-  return request(`/api/reservations/${reservationId}/return`, 'POST')
+export type ItemProblem = {
+  item_id: number
+  note: string
+}
+
+// Marks the items of a running reservation as given back, with one problem for every piece that has one, only for admins
+export function returnReservation(reservationId: number, problems: ItemProblem[]): Promise<void> {
+  return request(`/api/reservations/${reservationId}/return`, 'POST', { problems })
 }

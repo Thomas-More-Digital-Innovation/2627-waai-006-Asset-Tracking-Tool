@@ -1,3 +1,4 @@
+import { AlertTriangle, Check, Plus, Trash2 } from 'lucide-react'
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import Button from '../../components/ui/Button.tsx'
 import FormMessage from '../../components/ui/FormMessage.tsx'
@@ -82,6 +83,110 @@ function ItemList({ items }: { items: ReservedItem[] }) {
           <span className="shrink-0 text-gray-700">{item.count}×</span>
         </li>
       ))}
+    </ul>
+  )
+}
+
+// The reported problems per item id, one note for every piece that has a problem
+type ProblemNotes = Record<number, string[]>
+
+type ReturnItemListProps = {
+  items: ReservedItem[]
+  problems: ProblemNotes
+  onProblemsChange: (problems: ProblemNotes) => void
+  // After a failed confirm the reports that are still empty get marked
+  showEmpty: boolean
+}
+
+// The items of a reservation being given back; every piece with a problem gets its own report
+function ReturnItemList({ items, problems, onProblemsChange, showEmpty }: ReturnItemListProps) {
+  function setNotes(itemId: number, notes: string[]) {
+    onProblemsChange({ ...problems, [itemId]: notes })
+  }
+
+  return (
+    <ul className="flex flex-col gap-2">
+      {items.map((item) => {
+        const notes = problems[item.item_id] ?? []
+        // There cannot be more broken pieces than were lent out
+        const canAdd = notes.length < item.count
+        const hasProblems = notes.length > 0
+        return (
+          <li
+            className={`flex flex-col gap-3 rounded-lg border p-3 transition-colors ${hasProblems ? 'border-red-200 bg-red-50/60' : 'border-gray-200'}`}
+            key={item.item_id}
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <span className="font-medium break-words">
+                  {item.name}
+                  {item.article_number && <> - {item.article_number}</>}
+                </span>
+                <p className="flex items-center gap-1.5 text-sm text-gray-600">
+                  {item.count}×
+                  {hasProblems ? (
+                    <span className="inline-flex items-center gap-1 font-medium text-red-700">
+                      · <AlertTriangle className="size-3.5" aria-hidden="true" />
+                      {notes.length} {notes.length === 1 ? 'probleem' : 'problemen'}
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 text-green-700">
+                      · <Check className="size-3.5" aria-hidden="true" />
+                      In orde
+                    </span>
+                  )}
+                </p>
+              </div>
+              {canAdd && (
+                <button
+                  className="inline-flex min-h-9 shrink-0 cursor-pointer items-center gap-1.5 rounded-md border border-red-200 bg-white px-3 text-sm font-medium text-red-700 transition-colors hover:bg-red-50"
+                  type="button"
+                  onClick={() => setNotes(item.item_id, [...notes, ''])}
+                >
+                  {hasProblems ? (
+                    <Plus className="size-4" aria-hidden="true" />
+                  ) : (
+                    <AlertTriangle className="size-4" aria-hidden="true" />
+                  )}
+                  {hasProblems ? 'Nog een stuk' : 'Probleem melden'}
+                </button>
+              )}
+            </div>
+            {notes.map((note, index) => {
+              const isMissing = showEmpty && !note.trim()
+              return (
+                <div className="flex flex-col gap-2 rounded-md border border-red-100 bg-white p-3" key={index}>
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-sm font-medium text-gray-700">
+                      {item.count > 1 ? `Stuk ${index + 1} van ${item.count}` : 'Probleem'}
+                    </span>
+                    <button
+                      className="flex size-8 cursor-pointer items-center justify-center rounded-md text-gray-500 transition-colors hover:bg-gray-100 hover:text-red-700"
+                      type="button"
+                      aria-label={`Melding voor ${item.name}, stuk ${index + 1} verwijderen`}
+                      onClick={() => setNotes(item.item_id, notes.filter((_, i) => i !== index))}
+                    >
+                      <Trash2 className="size-4" aria-hidden="true" />
+                    </button>
+                  </div>
+                  <textarea
+                    className={`min-h-20 w-full rounded-md border bg-white px-3 py-2 text-base text-gray-900 placeholder:text-gray-400 focus:ring-2 focus:outline-none ${isMissing ? 'border-red-500 focus:border-red-500 focus:ring-red-500/30' : 'border-gray-300 focus:border-primary focus:ring-primary/30'}`}
+                    aria-label={`Probleem met ${item.name}, stuk ${index + 1}`}
+                    aria-invalid={isMissing}
+                    placeholder="Wat is er mis? Bijvoorbeeld: rits kapot, scheur in het doek…"
+                    value={note}
+                    onChange={(event) =>
+                      setNotes(item.item_id, notes.map((n, i) => (i === index ? event.target.value : n)))
+                    }
+                    autoFocus
+                  />
+                  {isMissing && <p className="text-sm text-red-700">Beschrijf wat er mis is, of verwijder deze melding.</p>}
+                </div>
+              )
+            })}
+          </li>
+        )
+      })}
     </ul>
   )
 }
@@ -193,6 +298,8 @@ function ReservationsPage({ isAdmin }: ReservationsPageProps) {
   const [cancelError, setCancelError] = useState('')
   const [returning, setReturning] = useState<Reservation | null>(null)
   const [returnError, setReturnError] = useState('')
+  const [problems, setProblems] = useState<ProblemNotes>({})
+  const [showEmptyProblems, setShowEmptyProblems] = useState(false)
   const [runningFilter, setRunningFilter] = useState(emptyFilter)
   const [upcomingFilter, setUpcomingFilter] = useState(emptyFilter)
 
@@ -204,6 +311,7 @@ function ReservationsPage({ isAdmin }: ReservationsPageProps) {
   }, [isAdmin])
 
   const now = new Date()
+  const problemCount = Object.values(problems).reduce((sum, notes) => sum + notes.length, 0)
 
   function closeCancel() {
     setCancelling(null)
@@ -223,11 +331,21 @@ function ReservationsPage({ isAdmin }: ReservationsPageProps) {
   function closeReturn() {
     setReturning(null)
     setReturnError('')
+    setProblems({})
+    setShowEmptyProblems(false)
   }
 
   async function handleReturn(reservation: Reservation) {
+    const reported = Object.entries(problems).flatMap(([itemId, notes]) =>
+      notes.map((note) => ({ item_id: Number(itemId), note: note.trim() })),
+    )
+    if (reported.some((problem) => !problem.note)) {
+      setShowEmptyProblems(true)
+      setReturnError('Beschrijf elk probleem, of verwijder het.')
+      return
+    }
     try {
-      await returnReservation(reservation.reservation_id)
+      await returnReservation(reservation.reservation_id, reported)
       // A returned reservation has ended, so it no longer belongs in the list
       setReservations((current) => current?.filter((r) => r.reservation_id !== reservation.reservation_id) ?? null)
       closeReturn()
@@ -401,19 +519,29 @@ function ReservationsPage({ isAdmin }: ReservationsPageProps) {
               <strong>{returning.department_name ?? 'geen afdeling'}</strong> terug zijn.
             </p>
 
-            <ItemList items={returning.items} />
+            <ReturnItemList
+              items={returning.items}
+              problems={problems}
+              onProblemsChange={setProblems}
+              showEmpty={showEmptyProblems}
+            />
 
             <p className="text-sm text-gray-600">
               Na het bevestigen is de reservering afgelopen en zijn de items meteen weer beschikbaar voor anderen.
+              Gemelde problemen worden bij het item bewaard.
             </p>
 
             {returnError && <FormMessage message={{ text: returnError, isError: true }} />}
 
-            <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+            <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-end">
               <Button variant="neutral" onClick={closeReturn}>
                 Terug
               </Button>
-              <Button onClick={() => handleReturn(returning)}>Bevestig teruggave</Button>
+              <Button onClick={() => handleReturn(returning)}>
+                {problemCount === 0
+                  ? 'Bevestig teruggave'
+                  : `Bevestig teruggave (${problemCount} ${problemCount === 1 ? 'probleem' : 'problemen'})`}
+              </Button>
             </div>
           </div>
         </Modal>

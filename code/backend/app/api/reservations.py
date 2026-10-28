@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from ..availability import reserved_per_item
 from ..dependencies import CurrentUser, DbSession, get_admin_user
-from ..models import Department, Item, Reservation, ReservationItem, User
+from ..models import Department, Item, ItemProblem, Reservation, ReservationItem, User
 from .settings import get_application_setting
 
 router = APIRouter(prefix="/reservations", tags=["reservations"])
@@ -25,6 +25,16 @@ class ReservationInput(BaseModel):
     end_time: time
     department_id: int
     items: list[ReservationLine] = Field(min_length=1)
+
+
+class ItemProblemInput(BaseModel):
+    item_id: int
+    note: str = Field(min_length=1)
+
+
+class ReturnInput(BaseModel):
+    # Problems found on items while checking them on return, one for every piece with a problem
+    problems: list[ItemProblemInput] = []
 
 
 class ReservationResponse(BaseModel):
@@ -162,10 +172,13 @@ def cancel_reservation(reservation_id: int, current_user: CurrentUser, db: DbSes
     response_model=ReservationResponse,
     dependencies=[Depends(get_admin_user)],
 )
-def return_reservation(reservation_id: int, current_user: CurrentUser, db: DbSession):
+def return_reservation(
+    reservation_id: int, current_user: CurrentUser, db: DbSession, data: ReturnInput | None = None
+):
     """Marks the items of a running reservation as given back, by letting the reservation end now.
 
     The reservation is kept as history, but its items are free again right away.
+    Problems found on the items are saved together with the return.
     """
     reservation = get_accessible_reservation(db, reservation_id, current_user)
     now = datetime.now().replace(second=0, microsecond=0)
@@ -174,8 +187,26 @@ def return_reservation(reservation_id: int, current_user: CurrentUser, db: DbSes
     if datetime.combine(reservation.end_date, reservation.end_time) <= now:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Deze reservering is al afgelopen")
 
+    problems = data.problems if data else []
+    reserved = {line.item_id: line for line in reservation.reservation_items}
+    # Every problem is one piece, so an item cannot have more problems than pieces were reserved
+    reported: dict[int, int] = {}
+    for problem in problems:
+        if problem.item_id not in reserved:
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST, "Een probleem kan alleen gemeld worden op een item van deze reservering"
+            )
+        reported[problem.item_id] = reported.get(problem.item_id, 0) + 1
+    for item_id, count in reported.items():
+        line = reserved[item_id]
+        if count > line.count:
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST, f"Er waren maar {line.count} van {line.item.name} gereserveerd"
+            )
+
     reservation.end_date = now.date()
     reservation.end_time = now.time()
+    db.add_all(ItemProblem(item_id=problem.item_id, note=problem.note.strip()) for problem in problems)
     db.commit()
     return reservation
 
