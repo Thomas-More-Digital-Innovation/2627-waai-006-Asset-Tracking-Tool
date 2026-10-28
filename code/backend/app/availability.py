@@ -22,7 +22,12 @@ def reserved_per_item(
     """Returns per item how many are already taken at the busiest moment of the period.
 
     A reservation that is being changed is left out, so its own items count as free.
+    The part of the period that has already passed is skipped: items that were out then but
+    have been given back since are free now, even when the period starts earlier today.
     """
+    start = max(start, datetime.now())
+    if start >= end:
+        return {}
     # Every line of every reservation that overlaps the period: which item, how many, from when to when
     query = (
         select(
