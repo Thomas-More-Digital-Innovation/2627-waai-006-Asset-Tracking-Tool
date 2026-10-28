@@ -15,6 +15,7 @@ services:
     environment:
       POSTGRES_HOST: db
       POSTGRES_PORT: 5432
+      TZ: Europe/Amsterdam
     ports:
       - "${BACKEND_PORT}:8000"
     volumes:
