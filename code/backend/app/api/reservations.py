@@ -90,10 +90,13 @@ def check_summer_rules(db: Session, data: ReservationInput) -> None:
 
 
 def list_current_reservations(db: Session, user_id: int | None = None) -> list[ReservationOverview]:
-    """Returns the reservations that are still running or have yet to start, of one user or of everyone."""
+    """Returns the reservations whose items are not given back yet, of one user or of everyone.
+
+    A reservation that has passed its end stays in the list until an admin confirms the items are back.
+    """
     query = (
         select(Reservation)
-        .where(Reservation.end_date + Reservation.end_time > datetime.now())
+        .where(Reservation.returned_at.is_(None))
         .options(
             selectinload(Reservation.department),
             selectinload(Reservation.user),
@@ -175,17 +178,17 @@ def cancel_reservation(reservation_id: int, current_user: CurrentUser, db: DbSes
 def return_reservation(
     reservation_id: int, current_user: CurrentUser, db: DbSession, data: ReturnInput | None = None
 ):
-    """Marks the items of a running reservation as given back, by letting the reservation end now.
+    """Marks the items of a started reservation as given back, also when that happens after its end.
 
-    The reservation is kept as history, but its items are free again right away.
-    Problems found on the items are saved together with the return.
+    The reservation is kept as history. When the items come back early, the reservation ends now,
+    so its items are free again right away. Problems found on the items are saved together with the return.
     """
     reservation = get_accessible_reservation(db, reservation_id, current_user)
     now = datetime.now().replace(second=0, microsecond=0)
     if datetime.combine(reservation.start_date, reservation.start_time) > now:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Deze reservering is nog niet begonnen")
-    if datetime.combine(reservation.end_date, reservation.end_time) <= now:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Deze reservering is al afgelopen")
+    if reservation.returned_at is not None:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Deze reservering is al teruggegeven")
 
     problems = data.problems if data else []
     reserved = {line.item_id: line for line in reservation.reservation_items}
@@ -204,8 +207,11 @@ def return_reservation(
                 status.HTTP_400_BAD_REQUEST, f"Er waren maar {line.count} van {line.item.name} gereserveerd"
             )
 
-    reservation.end_date = now.date()
-    reservation.end_time = now.time()
+    reservation.returned_at = now
+    # A late return keeps the planned end, so the history shows the period that was booked
+    if datetime.combine(reservation.end_date, reservation.end_time) > now:
+        reservation.end_date = now.date()
+        reservation.end_time = now.time()
     db.add_all(ItemProblem(item_id=problem.item_id, note=problem.note.strip()) for problem in problems)
     db.commit()
     return reservation

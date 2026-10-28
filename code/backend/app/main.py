@@ -6,11 +6,13 @@ from .api import auth, categories, departments, items, problems, reservations, s
 from .database import engine
 from .models import Base
 from .seeders import run_seeders
+from .upgrades import add_returned_at
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     Base.metadata.create_all(engine)
+    add_returned_at(engine)
     run_seeders()
     yield
 

@@ -20,12 +20,12 @@ export type Reservation = {
   items: ReservedItem[]
 }
 
-// The reservations of the current user that are still running or have yet to start
+// The reservations of the current user whose items are not given back yet, also when they are past their end
 export function fetchMyReservations(): Promise<Reservation[]> {
   return request('/api/reservations')
 }
 
-// The running and upcoming reservations of everyone, only for admins
+// The reservations of everyone whose items are not given back yet, only for admins
 export function fetchAllReservations(): Promise<Reservation[]> {
   return request('/api/reservations/all')
 }
@@ -39,7 +39,7 @@ export type ItemProblem = {
   note: string
 }
 
-// Marks the items of a running reservation as given back, with one problem for every piece that has one, only for admins
+// Marks the items of a started reservation as given back, also after its end, with one problem for every piece that has one, only for admins
 export function returnReservation(reservationId: number, problems: ItemProblem[]): Promise<void> {
   return request(`/api/reservations/${reservationId}/return`, 'POST', { problems })
 }

@@ -17,6 +17,7 @@ class Reservation(Base):
     end_time: Mapped[time] = mapped_column(nullable=False)
     start_date: Mapped[date] = mapped_column(nullable=False)
     end_date: Mapped[date] = mapped_column(nullable=False)
+    returned_at: Mapped[datetime | None] = mapped_column(nullable=True)
 
     department: Mapped["Department | None"] = relationship(back_populates="reservations")
     user: Mapped["User"] = relationship(back_populates="reservations")

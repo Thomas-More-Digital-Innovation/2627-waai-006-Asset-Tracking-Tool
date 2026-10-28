@@ -43,6 +43,11 @@ function isRunning(reservation: Reservation, now: Date) {
   return new Date(`${reservation.start_date}T${reservation.start_time}`) <= now
 }
 
+// Past its end but not given back yet, the list only holds reservations whose items are still out
+function isOverdue(reservation: Reservation, now: Date) {
+  return new Date(`${reservation.end_date}T${reservation.end_time}`) <= now
+}
+
 // Matches on everything an admin sees of a reservation: who, which department, when and which items
 function matchesSearch(reservation: Reservation, search: string) {
   const query = search.trim().toLowerCase()
@@ -194,6 +199,7 @@ function ReturnItemList({ items, problems, onProblemsChange, showEmpty }: Return
 type ReservationCardProps = {
   reservation: Reservation
   isRunning: boolean
+  isOverdue: boolean
   // Admins see who placed the reservation and can also change a running one or confirm its items are given back
   isAdmin: boolean
   onShowItems: () => void
@@ -201,7 +207,15 @@ type ReservationCardProps = {
   onReturn: () => void
 }
 
-function ReservationCard({ reservation, isRunning, isAdmin, onShowItems, onCancel, onReturn }: ReservationCardProps) {
+function ReservationCard({
+  reservation,
+  isRunning,
+  isOverdue,
+  isAdmin,
+  onShowItems,
+  onCancel,
+  onReturn,
+}: ReservationCardProps) {
   const total = reservation.items.reduce((sum, item) => sum + item.count, 0)
   const canChange = isAdmin || !isRunning
 
@@ -212,9 +226,15 @@ function ReservationCard({ reservation, isRunning, isAdmin, onShowItems, onCance
           {reservation.department_name ?? 'Geen afdeling'} - {formatStart(reservation)} - {formatEnd(reservation)}
         </p>
         <p className="text-sm text-gray-600">
-          {isAdmin ? reservation.user_name : isRunning ? 'Bezig' : 'Gepland'} · {total}{' '}
+          {isAdmin ? reservation.user_name : isOverdue ? 'Te laat' : isRunning ? 'Bezig' : 'Gepland'} · {total}{' '}
           {total === 1 ? 'item' : 'items'}
         </p>
+        {isOverdue && (
+          <p className="flex items-center gap-1.5 text-sm font-medium text-red-700">
+            <AlertTriangle className="size-3.5" aria-hidden="true" />
+            Te laat: had op {formatEnd(reservation)} terug moeten zijn
+          </p>
+        )}
         {isAdmin && reservation.department_mail && (
           <a
             className="text-sm break-all text-primary hover:underline"
@@ -360,6 +380,7 @@ function ReservationsPage({ isAdmin }: ReservationsPageProps) {
         key={reservation.reservation_id}
         reservation={reservation}
         isRunning={isRunning(reservation, now)}
+        isOverdue={isOverdue(reservation, now)}
         isAdmin={isAdmin}
         onShowItems={() => setSelected(reservation)}
         onCancel={() => setCancelling(reservation)}
