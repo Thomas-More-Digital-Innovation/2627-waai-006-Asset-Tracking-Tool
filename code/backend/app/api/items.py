@@ -7,7 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from ..availability import reserved_per_item
+from ..availability import broken_per_item, reserved_per_item
 from ..dependencies import CurrentUser, DbSession, get_admin_user
 from ..images import delete_image, image_path, save_image
 from ..models import Category, Item
@@ -94,10 +94,12 @@ def list_available_items(
         get_accessible_reservation(db, reservation_id, current_user)
 
     reserved = reserved_per_item(db, start, end, reservation_id)
+    # Pieces with an open problem cannot be booked until the problem is solved
+    broken = broken_per_item(db)
     items = db.scalars(select(Item).where(Item.is_active).order_by(Item.name)).all()
     result = []
     for item in items:
-        available = item.count - reserved.get(item.item_id, 0)
+        available = item.count - broken.get(item.item_id, 0) - reserved.get(item.item_id, 0)
         if available > 0:
             result.append(ItemAvailability(**ItemResponse.model_validate(item).model_dump(), available=available))
     return result

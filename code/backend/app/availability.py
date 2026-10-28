@@ -1,9 +1,18 @@
 from datetime import datetime
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from .models import Reservation, ReservationItem
+from .models import ItemProblem, Reservation, ReservationItem
+
+
+def broken_per_item(db: Session) -> dict[int, int]:
+    """Returns per item how many pieces have an open problem, those cannot be booked until it is solved.
+
+    Every reported problem is one piece.
+    """
+    rows = db.execute(select(ItemProblem.item_id, func.count()).group_by(ItemProblem.item_id)).all()
+    return {item_id: count for item_id, count in rows}
 
 
 def busiest_moment(lines, start: datetime) -> int:

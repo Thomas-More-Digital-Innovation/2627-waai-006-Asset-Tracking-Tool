@@ -5,7 +5,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
-from ..availability import reserved_per_item
+from ..availability import broken_per_item, reserved_per_item
 from ..dependencies import CurrentUser, DbSession, get_admin_user
 from ..models import Department, Item, ItemProblem, Reservation, ReservationItem, User
 from .settings import get_application_setting
@@ -243,10 +243,15 @@ def check_reservation(
 
     # Checked again here, because someone else may have reserved since the page was loaded
     reserved = reserved_per_item(db, start, end, exclude_reservation_id)
+    # Pieces with an open problem cannot be booked
+    broken = broken_per_item(db)
+    available = {
+        item.item_id: item.count - broken.get(item.item_id, 0) - reserved.get(item.item_id, 0) for item in items
+    }
     shortages = [
-        f"{item.name} (nog {max(item.count - reserved.get(item.item_id, 0), 0)} beschikbaar)"
+        f"{item.name} (nog {max(available[item.item_id], 0)} beschikbaar)"
         for item in items
-        if wanted[item.item_id] > item.count - reserved.get(item.item_id, 0)
+        if wanted[item.item_id] > available[item.item_id]
     ]
     if shortages:
         raise HTTPException(status.HTTP_409_CONFLICT, "Niet meer genoeg beschikbaar van: " + ", ".join(shortages))

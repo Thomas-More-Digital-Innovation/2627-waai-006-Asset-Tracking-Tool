@@ -2,7 +2,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from .api import auth, categories, departments, items, reservations, settings, users
+from .api import auth, categories, departments, items, problems, reservations, settings, users
 from .database import engine
 from .models import Base
 from .seeders import run_seeders
@@ -20,6 +20,7 @@ app.include_router(auth.router, prefix="/api")
 app.include_router(categories.router, prefix="/api")
 app.include_router(departments.router, prefix="/api")
 app.include_router(items.router, prefix="/api")
+app.include_router(problems.router, prefix="/api")
 app.include_router(reservations.router, prefix="/api")
 app.include_router(settings.router, prefix="/api")
 app.include_router(users.router, prefix="/api")
