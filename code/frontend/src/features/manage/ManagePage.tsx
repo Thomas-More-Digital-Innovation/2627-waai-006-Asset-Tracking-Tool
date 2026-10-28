@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import Dropdown from '../../components/ui/Dropdown.tsx'
 import {
   activateItem,
   activateUser,
@@ -59,8 +58,20 @@ const userFields: DataField[] = [
   { name: 'password', label: 'Wachtwoord', type: 'password', minLength: 8, hideInTable: true, optionalOnEdit: true },
 ]
 
+// The tab from the address, or the first tab when there is none
+function initialTab() {
+  const tab = new URLSearchParams(window.location.search).get('tab')
+  return manageOptions.find((option) => option.value === tab)?.value ?? manageOptions[0].value
+}
+
 function ManagePage() {
-  const [selected, setSelected] = useState('')
+  const [selected, setSelected] = useState(initialTab)
+
+  // Keeps the chosen tab in the address, so a reload opens the same tab
+  function selectTab(tab: string) {
+    setSelected(tab)
+    window.history.replaceState(null, '', `?tab=${tab}`)
+  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -68,14 +79,29 @@ function ManagePage() {
         <h1 className="text-2xl font-semibold">Beheren</h1>
       </div>
 
-      <div className="w-full sm:max-w-xs">
-        <Dropdown
-          label="Wat wil je beheren?"
-          options={manageOptions}
-          placeholder="Maak een keuze"
-          value={selected}
-          onChange={(event) => setSelected(event.target.value)}
-        />
+      {/* Tabs, the chosen one is underlined */}
+      <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+        <div className="flex min-w-max gap-1 border-b border-gray-200" role="tablist" aria-label="Wat wil je beheren?">
+          {manageOptions.map((option) => {
+            const isSelected = selected === option.value
+            return (
+              <button
+                key={option.value}
+                className={`-mb-px cursor-pointer border-b-2 px-4 py-3 text-sm font-semibold transition-colors ${
+                  isSelected
+                    ? 'border-primary text-primary'
+                    : 'border-transparent text-gray-600 hover:border-gray-300 hover:text-gray-900'
+                }`}
+                type="button"
+                role="tab"
+                aria-selected={isSelected}
+                onClick={() => selectTab(option.value)}
+              >
+                {option.label}
+              </button>
+            )
+          })}
+        </div>
       </div>
 
       {selected === 'item' && (
