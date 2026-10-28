@@ -1,7 +1,9 @@
+import csv
+import io
 from datetime import date, datetime, time
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, HTTPException, Response, UploadFile, status
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 from sqlalchemy import select
@@ -73,6 +75,24 @@ def apply_input(db: Session, item: Item, data: ItemInput) -> None:
 def list_items(db: DbSession):
     # Active items first, inactive items at the bottom
     return db.scalars(select(Item).order_by(Item.is_active.desc(), Item.name)).all()
+
+
+@router.get("/export", dependencies=[Depends(get_admin_user)])
+def export_items(db: DbSession):
+    broken = broken_per_item(db)
+    items = db.scalars(select(Item).order_by(Item.name)).all()
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["Naam", "Artikelnummer", "Aantal", "Categorie", "Aantal kapot"])
+    for item in items:
+        writer.writerow([item.name, item.article_number, item.count, item.category.name, broken.get(item.item_id, 0)])
+
+    return Response(
+        output.getvalue(),
+        media_type="text/csv",
+        headers={"Content-Disposition": 'attachment; filename="materiaal.csv"'},
+    )
 
 
 @router.get("/available", response_model=list[ItemAvailability])

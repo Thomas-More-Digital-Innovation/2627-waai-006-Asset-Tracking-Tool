@@ -1,5 +1,5 @@
 import { Image as ImageIcon, Pencil, Plus, RotateCcw, Trash2 } from 'lucide-react'
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import Button from '../../components/ui/Button.tsx'
 import Dropdown, { type DropdownOption } from '../../components/ui/Dropdown.tsx'
 import FormMessage from '../../components/ui/FormMessage.tsx'
@@ -52,6 +52,8 @@ type DataManagerProps = {
   restore?: (id: number) => Promise<void>
   // The name of a row in the delete question, by default the first text field
   describe?: (values: DataValues) => string
+  // Extra buttons next to "Toevoegen", for example an export
+  actions?: ReactNode
 }
 
 // Turns a stored value into the text shown in the table
@@ -69,7 +71,7 @@ function displayValue(value: DataValues[string] | undefined, options?: DropdownO
 const iconButtonClasses =
   'flex size-10 cursor-pointer items-center justify-center rounded-md text-gray-600 transition-colors hover:bg-gray-100'
 
-function DataManager({ title, fields, load, create, update, remove, restore, describe }: DataManagerProps) {
+function DataManager({ title, fields, load, create, update, remove, restore, describe, actions }: DataManagerProps) {
   const [rows, setRows] = useState<DataRow[]>([])
   // "new" means the add form is open, a row means that row is being edited
   const [editing, setEditing] = useState<DataRow | 'new' | null>(null)
@@ -167,10 +169,13 @@ function DataManager({ title, fields, load, create, update, remove, restore, des
     <section className="rounded-xl bg-white shadow">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 px-6 py-4">
         <h2 className="text-lg font-semibold">{title}</h2>
-        <Button onClick={() => setEditing('new')}>
-          <Plus className="size-4" aria-hidden="true" />
-          Toevoegen
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          {actions}
+          <Button onClick={() => setEditing('new')}>
+            <Plus className="size-4" aria-hidden="true" />
+            Toevoegen
+          </Button>
+        </div>
       </div>
 
       {!isModalOpen && error && (

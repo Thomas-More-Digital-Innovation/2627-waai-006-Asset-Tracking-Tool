@@ -1,4 +1,6 @@
+import { Download } from 'lucide-react'
 import { useState } from 'react'
+import Button from '../../components/ui/Button.tsx'
 import {
   activateItem,
   activateUser,
@@ -114,6 +116,12 @@ function ManagePage() {
           remove={deleteItem}
           restore={activateItem}
           describe={describeItem}
+          actions={
+            <Button variant="secondary" onClick={() => (window.location.href = '/api/items/export')}>
+              <Download className="size-4" aria-hidden="true" />
+              Exporteren
+            </Button>
+          }
         />
       )}
 
