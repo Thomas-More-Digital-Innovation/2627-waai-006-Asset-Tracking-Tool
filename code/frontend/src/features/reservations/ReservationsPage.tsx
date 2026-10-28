@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import Button from '../../components/ui/Button.tsx'
 import FormMessage from '../../components/ui/FormMessage.tsx'
+import Input from '../../components/ui/Input.tsx'
 import Modal from '../../components/ui/Modal.tsx'
 import SearchBar from '../../components/ui/SearchBar.tsx'
 import { startEditing } from '../reserve/cart.ts'
@@ -56,6 +57,16 @@ function matchesSearch(reservation: Reservation, search: string) {
     ...reservation.items.flatMap((item) => [item.name, item.article_number ?? '']),
   ]
   return fields.some((field) => field.toLowerCase().includes(query))
+}
+
+// The search text and the dates an admin filters a group of reservations on, an empty date means no limit
+type GroupFilter = { search: string; from: string; to: string }
+
+const emptyFilter: GroupFilter = { search: '', from: '', to: '' }
+
+// Keeps the reservations whose period touches the chosen dates; dates as "2026-10-20" compare correctly as text
+function matchesDates(reservation: Reservation, from: string, to: string) {
+  return (!from || reservation.end_date >= from) && (!to || reservation.start_date <= to)
 }
 
 // The items of a reservation with their article number and how many
@@ -182,8 +193,8 @@ function ReservationsPage({ isAdmin }: ReservationsPageProps) {
   const [cancelError, setCancelError] = useState('')
   const [returning, setReturning] = useState<Reservation | null>(null)
   const [returnError, setReturnError] = useState('')
-  const [runningSearch, setRunningSearch] = useState('')
-  const [upcomingSearch, setUpcomingSearch] = useState('')
+  const [runningFilter, setRunningFilter] = useState(emptyFilter)
+  const [upcomingFilter, setUpcomingFilter] = useState(emptyFilter)
 
   // Loads the reservations once, when the page first appears; admins get those of everyone
   useEffect(() => {
@@ -239,15 +250,18 @@ function ReservationsPage({ isAdmin }: ReservationsPageProps) {
     )
   }
 
-  // One block with a title and its own search, used by admins to split running from upcoming reservations
+  // One block with a title and its own search and date filter, used by admins to split running from upcoming reservations
   function renderGroup(
     title: string,
     group: Reservation[],
     emptyText: string,
-    search: string,
-    onSearchChange: (search: string) => void,
+    filter: GroupFilter,
+    onFilterChange: (filter: GroupFilter) => void,
   ) {
-    const visible = group.filter((reservation) => matchesSearch(reservation, search))
+    const visible = group.filter(
+      (reservation) =>
+        matchesSearch(reservation, filter.search) && matchesDates(reservation, filter.from, filter.to),
+    )
 
     return (
       <section className="flex flex-col gap-4 rounded-xl bg-gray-100 p-4 sm:p-5">
@@ -255,11 +269,38 @@ function ReservationsPage({ isAdmin }: ReservationsPageProps) {
           {title} <span className="font-normal text-gray-600">({group.length})</span>
         </h2>
         {group.length > 0 && (
-          <SearchBar
-            placeholder={`Zoeken in ${title.toLowerCase()}…`}
-            value={search}
-            onChange={(event) => onSearchChange(event.target.value)}
-          />
+          <div className="flex flex-col gap-3">
+            <SearchBar
+              placeholder={`Zoeken in ${title.toLowerCase()}…`}
+              value={filter.search}
+              onChange={(event) => onFilterChange({ ...filter, search: event.target.value })}
+            />
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Input
+                label="Van"
+                type="date"
+                value={filter.from}
+                max={filter.to || undefined}
+                onChange={(event) => onFilterChange({ ...filter, from: event.target.value })}
+              />
+              <Input
+                label="Tot"
+                type="date"
+                value={filter.to}
+                min={filter.from || undefined}
+                onChange={(event) => onFilterChange({ ...filter, to: event.target.value })}
+              />
+            </div>
+            {(filter.from || filter.to) && (
+              <button
+                className="cursor-pointer self-start text-sm text-primary hover:underline"
+                type="button"
+                onClick={() => onFilterChange({ ...filter, from: '', to: '' })}
+              >
+                Datums wissen
+              </button>
+            )}
+          </div>
         )}
         {group.length === 0 ? (
           <p className="text-gray-600">{emptyText}</p>
@@ -284,15 +325,15 @@ function ReservationsPage({ isAdmin }: ReservationsPageProps) {
             'Lopende reserveringen',
             reservations.filter((reservation) => isRunning(reservation, now)),
             'Er zijn geen lopende reserveringen.',
-            runningSearch,
-            setRunningSearch,
+            runningFilter,
+            setRunningFilter,
           )}
           {renderGroup(
             'Aankomende reserveringen',
             reservations.filter((reservation) => !isRunning(reservation, now)),
             'Er zijn geen aankomende reserveringen.',
-            upcomingSearch,
-            setUpcomingSearch,
+            upcomingFilter,
+            setUpcomingFilter,
           )}
         </div>
       )}
