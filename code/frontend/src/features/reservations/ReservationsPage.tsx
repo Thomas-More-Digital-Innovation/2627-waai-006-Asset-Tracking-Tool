@@ -500,7 +500,7 @@ function ReservationsPage({ isAdmin }: ReservationsPageProps) {
             {cancelError && <FormMessage message={{ text: cancelError, isError: true }} />}
 
             <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-              <Button variant="secondary" onClick={closeCancel}>
+              <Button variant="neutral" onClick={closeCancel}>
                 Terug
               </Button>
               <Button variant="danger" onClick={() => handleCancel(cancelling)}>
