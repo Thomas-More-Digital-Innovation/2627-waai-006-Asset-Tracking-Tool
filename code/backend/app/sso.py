@@ -1,11 +1,11 @@
-import json
 import os
-import urllib.parse
-import urllib.request
+from functools import cache
 
 import jwt
+import msal
+import requests
 
-from .security import AUTH_METHOD
+from .security import AUTH_METHOD, JWT_ALGORITHM, JWT_SECRET
 
 TENANT_ID = os.environ.get("AZURE_TENANT_ID", "").strip()
 CLIENT_ID = os.environ.get("AZURE_CLIENT_ID", "").strip()
@@ -15,59 +15,47 @@ if AUTH_METHOD == "sso" and not (TENANT_ID and CLIENT_ID and CLIENT_SECRET):
 
 # The address of the frontend, Microsoft sends the user back to it after logging in
 APP_URL = os.environ.get("APP_URL", f"http://localhost:{os.environ.get('FRONTEND_PORT', '5173')}").rstrip("/")
-REDIRECT_URI = f"{APP_URL}/api/auth/sso/callback"
+# Must match a Web redirect URI of the Azure app exactly, the path is always the callback of the backend
+REDIRECT_URI = os.environ.get("AZURE_REDIRECT_URI", "").strip() or f"{APP_URL}/api/auth/sso/callback"
 
 # The tenant in the address makes sure only accounts of this organisation can log in
 AUTHORITY = f"https://login.microsoftonline.com/{TENANT_ID}"
-SCOPE = "openid profile email"
-
-# Fetches the public keys of Microsoft only when a token has to be checked, and caches them
-jwks_client = jwt.PyJWKClient(f"{AUTHORITY}/discovery/v2.0/keys")
+# Asks for the email claim, MSAL adds openid and profile itself
+SCOPES = ["email"]
 
 
-def authorization_url(state: str, nonce: str) -> str:
-    query = urllib.parse.urlencode(
-        {
-            "client_id": CLIENT_ID,
-            "response_type": "code",
-            "redirect_uri": REDIRECT_URI,
-            "response_mode": "query",
-            "scope": SCOPE,
-            "state": state,
-            "nonce": nonce,
-        }
-    )
-    return f"{AUTHORITY}/oauth2/v2.0/authorize?{query}"
+class SsoError(Exception):
+    """The login with Microsoft failed, or did not start in this browser."""
 
 
-def fetch_id_token_claims(code: str, nonce: str) -> dict:
-    """Trades the code from Microsoft for an ID token and returns its checked claims.
+# Made on first use, so the backend also starts when Microsoft cannot be reached
+@cache
+def client() -> msal.ConfidentialClientApplication:
+    return msal.ConfidentialClientApplication(CLIENT_ID, client_credential=CLIENT_SECRET, authority=AUTHORITY)
 
-    Raises urllib.error.URLError when Microsoft refuses the code and jwt.PyJWTError when the token is not valid.
+
+def start_login() -> tuple[str, str]:
+    """Returns the address of the Microsoft login page and the flow to keep in a cookie until the callback.
+
+    The flow holds the state, nonce and PKCE verifier that MSAL checks the answer of Microsoft against.
     """
-    data = urllib.parse.urlencode(
-        {
-            "client_id": CLIENT_ID,
-            "client_secret": CLIENT_SECRET,
-            "grant_type": "authorization_code",
-            "code": code,
-            "redirect_uri": REDIRECT_URI,
-            "scope": SCOPE,
-        }
-    ).encode()
-    with urllib.request.urlopen(f"{AUTHORITY}/oauth2/v2.0/token", data=data, timeout=10) as response:
-        id_token = json.load(response)["id_token"]
+    # The first call fetches the settings of the tenant from Microsoft, which fails when it cannot be reached
+    try:
+        flow = client().initiate_auth_code_flow(SCOPES, redirect_uri=REDIRECT_URI)
+    except (ValueError, requests.RequestException) as exception:
+        raise SsoError from exception
+    auth_uri = flow.pop("auth_uri")
+    # Signed, so the browser cannot change the flow it hands back
+    return auth_uri, jwt.encode(flow, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
-    signing_key = jwks_client.get_signing_key_from_jwt(id_token)
-    claims = jwt.decode(
-        id_token,
-        signing_key.key,
-        algorithms=["RS256"],
-        audience=CLIENT_ID,
-        issuer=f"{AUTHORITY}/v2.0",
-    )
-    # The nonce ties the token to the login that this browser started
-    if claims.get("nonce") != nonce:
-        raise jwt.InvalidTokenError("Nonce does not match")
-    return claims
- 
+
+def finish_login(flow_cookie: str | None, query: dict[str, str]) -> dict:
+    """Trades the code from Microsoft for an ID token and returns its claims, such as name and email."""
+    try:
+        flow = jwt.decode(flow_cookie or "", JWT_SECRET, algorithms=[JWT_ALGORITHM])
+        result = client().acquire_token_by_auth_code_flow(flow, query)
+    except (jwt.InvalidTokenError, ValueError, requests.RequestException) as exception:
+        raise SsoError from exception
+    if "id_token_claims" not in result:
+        raise SsoError(result.get("error_description") or result.get("error"))
+    return result["id_token_claims"]

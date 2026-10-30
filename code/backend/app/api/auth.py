@@ -1,10 +1,7 @@
 import os
-import secrets
-import urllib.error
 from typing import Annotated, Literal
 
-import jwt
-from fastapi import APIRouter, Cookie, HTTPException, Response, status
+from fastapi import APIRouter, Cookie, HTTPException, Request, Response, status
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 from sqlalchemy import select
@@ -22,8 +19,8 @@ from ..security import (
 )
 
 COOKIE_SECURE = os.environ.get("COOKIE_SECURE", "false").lower() == "true"
-SSO_STATE_COOKIE = "sso_state"
-SSO_STATE_MAX_AGE = 60 * 10
+SSO_FLOW_COOKIE = "sso_flow"
+SSO_FLOW_MAX_AGE = 60 * 10
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -100,15 +97,17 @@ def login(credentials: LoginRequest, response: Response, db: DbSession):
 @router.get("/sso/login")
 def sso_login():
     require_auth_method("sso")
-    state = secrets.token_urlsafe(32)
-    nonce = secrets.token_urlsafe(32)
+    try:
+        auth_uri, flow = sso.start_login()
+    except sso.SsoError:
+        return RedirectResponse("/?login_error=sso_failed")
 
-    response = RedirectResponse(sso.authorization_url(state, nonce))
+    response = RedirectResponse(auth_uri)
     # Remembers which login this browser started, the callback checks it against what Microsoft sends back
     response.set_cookie(
-        SSO_STATE_COOKIE,
-        f"{state}:{nonce}",
-        max_age=SSO_STATE_MAX_AGE,
+        SSO_FLOW_COOKIE,
+        flow,
+        max_age=SSO_FLOW_MAX_AGE,
         path="/api/auth/sso",
         httponly=True,
         secure=COOKIE_SECURE,
@@ -128,32 +127,25 @@ def split_name(name: str, email: str) -> tuple[str, str]:
 # Microsoft sends the browser here after the user logged in, with a code and the state from sso_login
 @router.get("/sso/callback")
 def sso_callback(
+    request: Request,
     db: DbSession,
-    code: str | None = None,
-    state: str | None = None,
-    sso_state: Annotated[str | None, Cookie(alias=SSO_STATE_COOKIE)] = None,
+    sso_flow: Annotated[str | None, Cookie(alias=SSO_FLOW_COOKIE)] = None,
 ):
     require_auth_method("sso")
 
     # Every outcome ends here: back to the frontend, with an error code for the login page or logged in
     def finish(error: str | None = None, user_id: int | None = None) -> RedirectResponse:
         response = RedirectResponse(f"/?login_error={error}" if error else "/")
-        # The state is only valid for one attempt, so it is removed whatever the outcome
-        response.delete_cookie(SSO_STATE_COOKIE, path="/api/auth/sso", httponly=True, secure=COOKIE_SECURE, samesite="lax")
+        # The flow is only valid for one attempt, so it is removed whatever the outcome
+        response.delete_cookie(SSO_FLOW_COOKIE, path="/api/auth/sso", httponly=True, secure=COOKIE_SECURE, samesite="lax")
         if user_id is not None:
             set_access_token_cookie(response, user_id)
         return response
 
-    # The state from Microsoft must match the cookie, so only a login this browser started is accepted (CSRF).
-    # compare_digest compares in constant time, so the state cannot be guessed from response times.
-    expected_state, _, nonce = (sso_state or "").partition(":")
-    if not code or not state or not expected_state or not secrets.compare_digest(state, expected_state):
-        return finish("sso_failed")
-
-    # Trades the code for an ID token and checks its signature, app, tenant, expiry and nonce
+    # MSAL checks the answer against the flow of this browser (state, nonce and PKCE) and trades the code
     try:
-        claims = sso.fetch_id_token_claims(code, nonce)
-    except (urllib.error.URLError, KeyError, ValueError, jwt.PyJWTError):
+        claims = sso.finish_login(sso_flow, dict(request.query_params))
+    except sso.SsoError:
         return finish("sso_failed")
 
     # Not every account has an email claim, the user principal name is then used instead
