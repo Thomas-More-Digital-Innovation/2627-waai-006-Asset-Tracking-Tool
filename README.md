@@ -50,3 +50,7 @@ docker compose up -d --build
 ```
 
 De frontend draait dan op de `FRONTEND_PORT` uit `.env` (standaard http://localhost:5173).
+
+## SSO
+
+`AZURE_REDIRECT_URI` moet eindigen op `/api/auth/sso/callback`, bv. `http://localhost:5173/api/auth/sso/callback`. Zet exact dezelfde URI in Azure onder *Authentication* → **Web**.
