@@ -6,6 +6,16 @@ export type User = {
   is_admin: boolean
 }
 
+export type AuthMethod = 'email' | 'sso'
+
+export async function fetchAuthMethod(): Promise<AuthMethod> {
+  const response = await fetch('/api/auth/method')
+  if (!response.ok) {
+    throw new Error('Inlogmethode ophalen mislukt')
+  }
+  return (await response.json()).method
+}
+
 export async function login(email: string, password: string): Promise<User> {
   const response = await fetch('/api/auth/login', {
     method: 'POST',

@@ -1,15 +1,32 @@
 import { useState, type FormEvent } from 'react'
+import { FaMicrosoft } from 'react-icons/fa'
 import Button from '../../components/ui/Button.tsx'
 import Input from '../../components/ui/Input.tsx'
 import Logo from '../../components/ui/Logo.tsx'
-import { login, type User } from './api.ts'
+import { login, type AuthMethod, type User } from './api.ts'
 
 type LoginPageProps = {
+  authMethod: AuthMethod
   onLogin: (user: User) => void
 }
 
-function LoginPage({ onLogin }: LoginPageProps) {
-  const [error, setError] = useState('')
+const ssoErrors: Record<string, string> = {
+  sso_failed: 'Inloggen met Microsoft is mislukt. Probeer het opnieuw.',
+  sso_no_email: 'Je Microsoft-account heeft geen e-mailadres.',
+  inactive: 'Je account is niet actief. Neem contact op met een beheerder.',
+}
+
+// The backend sends the reason of a failed Microsoft login back in the address
+function initialError() {
+  const code = new URLSearchParams(window.location.search).get('login_error')
+  if (code) {
+    window.history.replaceState(null, '', window.location.pathname)
+  }
+  return code ? (ssoErrors[code] ?? ssoErrors.sso_failed) : ''
+}
+
+function LoginPage({ authMethod, onLogin }: LoginPageProps) {
+  const [error, setError] = useState(initialError)
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     // Prevents the browser from reloading the page when the form is submitted
@@ -30,16 +47,30 @@ function LoginPage({ onLogin }: LoginPageProps) {
           <Logo />
         </div>
 
-        <form className="flex flex-col gap-5 p-6" onSubmit={handleSubmit}>
-          <h1 className="text-xl font-semibold">Inloggen</h1>
+        {authMethod === 'sso' ? (
+          <div className="flex flex-col gap-5 p-6">
+            <h1 className="text-xl font-semibold text-center">Inloggen</h1>
 
-          <Input label="E-mailadres" name="email" type="email" required />
-          <Input label="Wachtwoord" name="password" type="password" required />
+            {error && <p className="text-sm text-red-700">{error}</p>}
 
-          {error && <p className="text-sm text-red-700">{error}</p>}
+            {/* A full page visit, because the backend sends the browser on to Microsoft */}
+            <Button onClick={() => (window.location.href = '/api/auth/sso/login')}>
+              <FaMicrosoft className="size-4" aria-hidden="true" />
+              Inloggen met Microsoft
+            </Button>
+          </div>
+        ) : (
+          <form className="flex flex-col gap-5 p-6" onSubmit={handleSubmit}>
+            <h1 className="text-xl font-semibold">Inloggen</h1>
 
-          <Button type="submit">Inloggen</Button>
-        </form>
+            <Input label="E-mailadres" name="email" type="email" required />
+            <Input label="Wachtwoord" name="password" type="password" required />
+
+            {error && <p className="text-sm text-red-700">{error}</p>}
+
+            <Button type="submit">Inloggen</Button>
+          </form>
+        )}
       </div>
     </main>
   )

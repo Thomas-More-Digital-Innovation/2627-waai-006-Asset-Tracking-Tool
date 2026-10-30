@@ -1,6 +1,7 @@
 import { Download } from 'lucide-react'
 import { useState } from 'react'
 import Button from '../../components/ui/Button.tsx'
+import type { AuthMethod } from '../auth/api.ts'
 import {
   activateItem,
   activateUser,
@@ -57,8 +58,16 @@ const userFields: DataField[] = [
   { name: 'lastname', label: 'Achternaam' },
   { name: 'email', label: 'E-mailadres', type: 'email' },
   { name: 'is_admin', label: 'Beheerder', type: 'checkbox' },
-  { name: 'password', label: 'Wachtwoord', type: 'password', minLength: 8, hideInTable: true, optionalOnEdit: true },
 ]
+
+const passwordField: DataField = {
+  name: 'password',
+  label: 'Wachtwoord',
+  type: 'password',
+  minLength: 8,
+  hideInTable: true,
+  optionalOnEdit: true,
+}
 
 // The tab from the address, or the first tab when there is none
 function initialTab() {
@@ -66,7 +75,11 @@ function initialTab() {
   return manageOptions.find((option) => option.value === tab)?.value ?? manageOptions[0].value
 }
 
-function ManagePage() {
+type ManagePageProps = {
+  authMethod: AuthMethod
+}
+
+function ManagePage({ authMethod }: ManagePageProps) {
   const [selected, setSelected] = useState(initialTab)
 
   // Keeps the chosen tab in the address, so a reload opens the same tab
@@ -150,7 +163,8 @@ function ManagePage() {
       {selected === 'user' && (
         <DataManager
           title="Gebruikers"
-          fields={userFields}
+          // With SSO users log in with Microsoft, so they have no password here
+          fields={authMethod === 'email' ? [...userFields, passwordField] : userFields}
           load={fetchUsers}
           create={createUser}
           update={updateUser}

@@ -2,15 +2,19 @@ import { useState, type FormEvent } from 'react'
 import Button from '../../components/ui/Button.tsx'
 import FormMessage, { type Message } from '../../components/ui/FormMessage.tsx'
 import Input from '../../components/ui/Input.tsx'
-import { changePassword, updateProfile, type User } from '../auth/api.ts'
+import { changePassword, updateProfile, type AuthMethod, type User } from '../auth/api.ts'
 import SummerTimeForm from './SummerTimeForm.tsx'
 
-type SettingsPageProps = {
+type ProfileFormProps = {
   user: User
   onUserChange: (user: User) => void
 }
 
-function ProfileForm({ user, onUserChange }: SettingsPageProps) {
+type SettingsPageProps = ProfileFormProps & {
+  authMethod: AuthMethod
+}
+
+function ProfileForm({ user, onUserChange }: ProfileFormProps) {
   const [message, setMessage] = useState<Message | null>(null)
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -85,12 +89,13 @@ function PasswordForm() {
   )
 }
 
-function SettingsPage({ user, onUserChange }: SettingsPageProps) {
+function SettingsPage({ user, authMethod, onUserChange }: SettingsPageProps) {
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-col gap-6">
       <h1 className="text-2xl font-semibold">Instellingen</h1>
       <ProfileForm user={user} onUserChange={onUserChange} />
-      <PasswordForm />
+      {/* With SSO the password belongs to the Microsoft account */}
+      {authMethod === 'email' && <PasswordForm />}
       {user.is_admin && <SummerTimeForm />}
     </div>
   )

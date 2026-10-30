@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import Footer from './components/layout/Footer.tsx'
 import Navbar from './components/layout/Navbar.tsx'
 import { adminLinks, defaultLinks } from './components/layout/navLinks.ts'
-import { fetchCurrentUser, logout, type User } from './features/auth/api.ts'
+import { fetchAuthMethod, fetchCurrentUser, logout, type AuthMethod, type User } from './features/auth/api.ts'
 import LoginPage from './features/auth/LoginPage.tsx'
 import ManagePage from './features/manage/ManagePage.tsx'
 import ProblemsPage from './features/problems/ProblemsPage.tsx'
@@ -12,13 +12,14 @@ import SettingsPage from './features/settings/SettingsPage.tsx'
 
 function App() {
   const [user, setUser] = useState<User | null>(null)
+  const [authMethod, setAuthMethod] = useState<AuthMethod>('email')
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
-    fetchCurrentUser()
-      .then(setUser)
-      .catch(() => setUser(null))
-      .finally(() => setIsLoading(false))
+    Promise.all([
+      fetchCurrentUser().then(setUser, () => setUser(null)),
+      fetchAuthMethod().then(setAuthMethod, () => setAuthMethod('email')),
+    ]).finally(() => setIsLoading(false))
   }, [])
 
   async function handleLogout() {
@@ -31,7 +32,7 @@ function App() {
   }
 
   if (!user) {
-    return <LoginPage onLogin={setUser} />
+    return <LoginPage authMethod={authMethod} onLogin={setUser} />
   }
 
   // The root path has no page of its own, so send it to the reserve page
@@ -46,9 +47,9 @@ function App() {
   } else if (path === '/reservations') {
     page = <ReservationsPage isAdmin={user.is_admin} />
   } else if (path === '/settings') {
-    page = <SettingsPage user={user} onUserChange={setUser} />
+    page = <SettingsPage user={user} authMethod={authMethod} onUserChange={setUser} />
   } else if (path === '/manage' && user.is_admin) {
-    page = <ManagePage />
+    page = <ManagePage authMethod={authMethod} />
   } else if (path === '/problems' && user.is_admin) {
     page = <ProblemsPage />
   }

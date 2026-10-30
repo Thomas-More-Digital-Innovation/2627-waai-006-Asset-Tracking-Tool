@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from ..dependencies import AdminUser, DbSession
 from ..models import User
-from ..security import hash_password
+from ..security import AUTH_METHOD, hash_password
 from .auth import Name, UserResponse
 
 router = APIRouter(prefix="/users", tags=["users"])
@@ -28,7 +28,8 @@ class UserCreate(BaseModel):
     lastname: Name
     email: Email
     is_admin: bool = False
-    password: Password
+    # Only used when logging in with email, with SSO Microsoft checks the password
+    password: Password | None = None
 
 
 class UserUpdate(BaseModel):
@@ -61,13 +62,15 @@ def list_users(admin: AdminUser, db: DbSession):
 def create_user(data: UserCreate, admin: AdminUser, db: DbSession):
     if find_user_by_email(db, data.email) is not None:
         raise HTTPException(status.HTTP_409_CONFLICT, "Er bestaat al een gebruiker met dit e-mailadres")
+    if AUTH_METHOD == "email" and not data.password:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Wachtwoord is verplicht")
 
     user = User(
         firstname=data.firstname,
         lastname=data.lastname,
         email=data.email,
         is_admin=data.is_admin,
-        password=hash_password(data.password),
+        password=hash_password(data.password) if AUTH_METHOD == "email" and data.password else None,
     )
     db.add(user)
     db.commit()
@@ -87,7 +90,7 @@ def update_user(user_id: int, data: UserUpdate, admin: AdminUser, db: DbSession)
     user.lastname = data.lastname
     user.email = data.email
     user.is_admin = data.is_admin
-    if data.password:
+    if AUTH_METHOD == "email" and data.password:
         user.password = hash_password(data.password)
     db.commit()
     return user

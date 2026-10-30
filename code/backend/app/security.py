@@ -9,6 +9,11 @@ JWT_ALGORITHM = "HS256"
 ACCESS_TOKEN_COOKIE = "access_token"
 ACCESS_TOKEN_MAX_AGE = 60 * 60 * 8
 
+# "email" logs in with a password, "sso" logs in with a Microsoft account
+AUTH_METHOD = os.environ.get("AUTH_METHOD", "email").strip().lower()
+if AUTH_METHOD not in ("email", "sso"):
+    raise RuntimeError('AUTH_METHOD must be "email" or "sso"')
+
 
 def hash_password(password: str) -> str:
     return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
