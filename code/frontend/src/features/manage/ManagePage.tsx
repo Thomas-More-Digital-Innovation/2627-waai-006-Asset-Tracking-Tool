@@ -23,6 +23,7 @@ import {
   updateItem,
   updateUser,
 } from './api.ts'
+import BackupPanel from './BackupPanel.tsx'
 import DataManager, { type DataField, type DataValues } from './DataManager.tsx'
 
 const manageOptions = [
@@ -30,6 +31,7 @@ const manageOptions = [
   { value: 'category', label: 'Categorieën' },
   { value: 'department', label: 'Afdelingen' },
   { value: 'user', label: 'Gebruikers' },
+  { value: 'backup', label: 'Backup' },
 ]
 
 const categoryFields: DataField[] = [{ name: 'name', label: 'Naam' }]
@@ -172,6 +174,8 @@ function ManagePage({ authMethod }: ManagePageProps) {
           restore={activateUser}
         />
       )}
+
+      {selected === 'backup' && <BackupPanel />}
     </div>
   )
 }

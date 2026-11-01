@@ -166,6 +166,24 @@ export async function activateItem(id: number): Promise<void> {
   await request(`/api/items/${id}/activate`, 'POST')
 }
 
+export type BackupSummary = {
+  categories: number
+  departments: number
+  items: number
+}
+
+// The backup is a zip file, so it is sent as a form and not as JSON
+export async function uploadBackup(file: File): Promise<BackupSummary> {
+  const body = new FormData()
+  body.append('file', file)
+  const response = await fetch('/api/backup', { method: 'POST', body })
+  if (!response.ok) {
+    const error = await response.json().catch(() => null)
+    throw new Error(typeof error?.detail === 'string' ? error.detail : 'Het terugzetten is mislukt.')
+  }
+  return response.json()
+}
+
 export async function fetchCategoryOptions() {
   const categories = await request<Category[]>('/api/categories')
   return categories.map((category) => ({ value: String(category.category_id), label: category.name }))

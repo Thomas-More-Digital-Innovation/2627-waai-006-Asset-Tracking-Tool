@@ -19,6 +19,13 @@ def save_image(file: UploadFile) -> str:
     if len(content) > MAX_UPLOAD_BYTES:
         raise HTTPException(status.HTTP_413_CONTENT_TOO_LARGE, "De afbeelding is te groot (maximaal 10 MB)")
 
+    filename = f"{uuid.uuid4().hex}.webp"
+    store_image(content, filename)
+    return filename
+
+
+def store_image(content: bytes, filename: str) -> None:
+    """Shrinks an image and stores it as WebP under the given filename."""
     try:
         image = Image.open(BytesIO(content))
         if image.format not in ("JPEG", "PNG", "WEBP"):
@@ -33,9 +40,7 @@ def save_image(file: UploadFile) -> str:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Upload een JPG-, PNG- of WebP-afbeelding")
 
     UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
-    filename = f"{uuid.uuid4().hex}.webp"
     image.save(UPLOAD_DIR / filename, "WEBP", quality=80)
-    return filename
 
 
 def image_path(filename: str) -> Path | None:
