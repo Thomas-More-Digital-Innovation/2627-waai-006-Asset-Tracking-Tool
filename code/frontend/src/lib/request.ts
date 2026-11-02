@@ -1,3 +1,5 @@
+import { useAuth } from '../features/auth/useAuth.ts'
+
 // Sends a request to the backend and returns the answer, or throws an error with a readable reason
 export async function request<T>(url: string, method = 'GET', body?: unknown): Promise<T> {
   const response = await fetch(url, {
@@ -5,6 +7,10 @@ export async function request<T>(url: string, method = 'GET', body?: unknown): P
     headers: body ? { 'Content-Type': 'application/json' } : undefined,
     body: body ? JSON.stringify(body) : undefined,
   })
+  // The session has expired, so the login page is shown again
+  if (response.status === 401) {
+    useAuth.getState().setUser(null)
+  }
   if (!response.ok) {
     // The backend sends a readable reason in "detail" for errors it expects
     const error = await response.json().catch(() => null)
