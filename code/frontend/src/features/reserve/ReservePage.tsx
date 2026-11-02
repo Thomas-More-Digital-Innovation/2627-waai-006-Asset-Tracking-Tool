@@ -1,5 +1,6 @@
 import { ArrowLeft, ShoppingCart } from 'lucide-react'
 import { useEffect, useState, type ReactNode } from 'react'
+import { Link, useSearchParams } from 'react-router'
 import Button from '../../components/ui/Button.tsx'
 import FormMessage from '../../components/ui/FormMessage.tsx'
 import QuantityStepper from '../../components/ui/QuantityStepper.tsx'
@@ -51,9 +52,9 @@ function Availability({ period, categoryId, showCart, reservationId }: Availabil
           <span className="font-medium">
             {formatMoment(period.start_date, period.start_time)} tot {formatMoment(period.end_date, period.end_time)}
           </span>
-          <a className="text-primary hover:underline" href={`/reserve?${periodQuery}&view=period`}>
+          <Link className="text-primary hover:underline" to={`/reserve?${periodQuery}&view=period`}>
             Periode wijzigen
-          </a>
+          </Link>
         </p>
         {cartLink}
       </div>
@@ -117,13 +118,13 @@ function Availability({ period, categoryId, showCart, reservationId }: Availabil
   }
 
   const header = renderHeader(
-    <a
+    <Link
       className="flex min-h-10 items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-white hover:brightness-110"
-      href={`/reserve?${periodQuery}&view=cart`}
+      to={`/reserve?${periodQuery}&view=cart`}
     >
       <ShoppingCart className="size-4" aria-hidden="true" />
       Winkelmandje ({cartTotal})
-    </a>,
+    </Link>,
   )
 
   const searchText = search.trim().toLowerCase()
@@ -191,13 +192,13 @@ function Availability({ period, categoryId, showCart, reservationId }: Availabil
     return (
       <section className="flex flex-col gap-4">
         {header}
-        <a
+        <Link
           className="flex items-center gap-2 self-start text-sm font-medium text-primary hover:underline"
-          href={`/reserve?${periodQuery}`}
+          to={`/reserve?${periodQuery}`}
         >
           <ArrowLeft className="size-4" aria-hidden="true" />
           Terug naar categorieën
-        </a>
+        </Link>
         <h2 className="text-lg font-semibold">{category.name}</h2>
 
         {categoryItems.length === 0 ? (
@@ -262,9 +263,8 @@ function Availability({ period, categoryId, showCart, reservationId }: Availabil
 }
 
 function ReservePage() {
-  // Read once, so the period stays the same object while the page is open
-  const [params] = useState(() => new URLSearchParams(window.location.search))
-  const [period] = useState(() => readPeriod(params))
+  const [params] = useSearchParams()
+  const period = readPeriod(params)
   const view = params.get('view')
   const reservationId = Number(params.get('reservation')) || null
 
@@ -275,16 +275,19 @@ function ReservePage() {
       {reservationId && (
         <p className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-gray-600">
           Je past een bestaande reservering aan. Wijzigingen worden pas opgeslagen in het winkelmandje.
-          <a className="text-primary hover:underline" href="/reservations" onClick={clearCart}>
+          <Link className="text-primary hover:underline" to="/reservations" onClick={clearCart}>
             Stoppen met wijzigen
-          </a>
+          </Link>
         </p>
       )}
 
       {!period || view === 'period' ? (
         <PeriodForm initial={period} reservationId={reservationId} />
       ) : (
+        // A new address starts this part over, so the items and cart are loaded again for it,
+        // the same as when every link still reloaded the page
         <Availability
+          key={params.toString()}
           period={period}
           categoryId={Number(params.get('category'))}
           showCart={view === 'cart'}

@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { Link } from 'react-router'
 
 type TileProps = {
   title: string
@@ -24,12 +25,12 @@ function Tile({ title, subtitle, imageUrl, actionLabel, href, children }: TilePr
         </div>
 
         {actionLabel && href && (
-          <a
+          <Link
             className="flex min-h-10 items-center justify-center rounded-md bg-primary px-4 py-2 text-center text-sm font-semibold text-white transition hover:brightness-110 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
-            href={href}
+            to={href}
           >
             {actionLabel}
-          </a>
+          </Link>
         )}
 
         {children}

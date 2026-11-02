@@ -1,5 +1,6 @@
 import { LogOut, Menu, X } from 'lucide-react'
 import { useState } from 'react'
+import { NavLink as RouterLink } from 'react-router'
 import Button from '../ui/Button.tsx'
 import Logo from '../ui/Logo.tsx'
 import { defaultLinks, type NavLink } from './navLinks.ts'
@@ -11,7 +12,6 @@ type NavbarProps = {
 
 function Navbar({ links = defaultLinks, onLogout }: NavbarProps) {
   const [isOpen, setIsOpen] = useState(false)
-  const currentPath = window.location.pathname
 
   return (
     <header className="sticky top-0 z-10 bg-primary text-white shadow-md">
@@ -20,24 +20,23 @@ function Navbar({ links = defaultLinks, onLogout }: NavbarProps) {
         <div className="hidden items-center gap-4 md:flex">
           <nav aria-label="Hoofdnavigatie">
             <ul className="flex items-center gap-1">
-              {links.map((link) => {
-                const isActive = currentPath === link.href
-                return (
-                  <li key={link.href}>
-                    <a
-                      className={`relative block rounded-md px-3 py-2 text-sm font-medium transition-colors hover:bg-white/10 ${
+              {links.map((link) => (
+                <li key={link.href}>
+                  {/* The router marks the link of the open page as active and sets aria-current itself */}
+                  <RouterLink
+                    className={({ isActive }) =>
+                      `relative block rounded-md px-3 py-2 text-sm font-medium transition-colors hover:bg-white/10 ${
                         isActive
                           ? 'text-white after:absolute after:inset-x-3 after:-bottom-0.5 after:h-0.5 after:rounded-full after:bg-secondary'
                           : 'text-white/80 hover:text-white'
-                      }`}
-                      href={link.href}
-                      aria-current={isActive ? 'page' : undefined}
-                    >
-                      {link.label}
-                    </a>
-                  </li>
-                )
-              })}
+                      }`
+                    }
+                    to={link.href}
+                  >
+                    {link.label}
+                  </RouterLink>
+                </li>
+              ))}
             </ul>
           </nav>
           <Button variant="secondary" onClick={onLogout}>
@@ -60,22 +59,22 @@ function Navbar({ links = defaultLinks, onLogout }: NavbarProps) {
       {isOpen && (
         <nav className="border-t border-white/15 md:hidden" aria-label="Hoofdnavigatie">
           <ul className="mx-auto flex w-full max-w-6xl flex-col gap-1 px-4 py-3">
-            {links.map((link) => {
-              const isActive = currentPath === link.href
-              return (
-                <li key={link.href}>
-                  <a
-                    className={`block rounded-md border-l-4 px-3 py-2.5 font-medium transition-colors hover:bg-white/10 ${
+            {links.map((link) => (
+              <li key={link.href}>
+                <RouterLink
+                  className={({ isActive }) =>
+                    `block rounded-md border-l-4 px-3 py-2.5 font-medium transition-colors hover:bg-white/10 ${
                       isActive ? 'border-secondary bg-white/10 text-white' : 'border-transparent text-white/80'
-                    }`}
-                    href={link.href}
-                    aria-current={isActive ? 'page' : undefined}
-                  >
-                    {link.label}
-                  </a>
-                </li>
-              )
-            })}
+                    }`
+                  }
+                  to={link.href}
+                  // The page no longer reloads, so the menu is closed by hand
+                  onClick={() => setIsOpen(false)}
+                >
+                  {link.label}
+                </RouterLink>
+              </li>
+            ))}
           </ul>
           <div className="mx-auto w-full max-w-6xl px-4 pb-4">
             <Button className="w-full" variant="secondary" onClick={onLogout}>

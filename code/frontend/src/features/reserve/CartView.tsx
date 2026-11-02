@@ -1,5 +1,6 @@
 import { ArrowLeft, Trash2 } from 'lucide-react'
 import { useEffect, useState, type FormEvent } from 'react'
+import { Link } from 'react-router'
 import Button from '../../components/ui/Button.tsx'
 import Dropdown from '../../components/ui/Dropdown.tsx'
 import FormMessage from '../../components/ui/FormMessage.tsx'
@@ -67,19 +68,19 @@ function CartView({ period, items, cart, reservationId, onChange, onReserved, ba
         <h2 className="text-lg font-semibold">
           {reservationId ? 'Je reservering is gewijzigd' : 'Je reservering is geplaatst'}
         </h2>
-        <a className="self-start text-primary hover:underline" href={reservationId ? '/reservations' : '/reserve'}>
+        <Link className="self-start text-primary hover:underline" to={reservationId ? '/reservations' : '/reserve'}>
           {reservationId ? 'Terug naar reserveringen' : 'Nieuwe reservering maken'}
-        </a>
+        </Link>
       </section>
     )
   }
 
   return (
     <section className="flex w-full max-w-2xl flex-col gap-4">
-      <a className="flex items-center gap-2 self-start text-sm font-medium text-primary hover:underline" href={backHref}>
+      <Link className="flex items-center gap-2 self-start text-sm font-medium text-primary hover:underline" to={backHref}>
         <ArrowLeft className="size-4" aria-hidden="true" />
         Verder kiezen
-      </a>
+      </Link>
 
       <form className="flex flex-col gap-5 rounded-xl bg-white p-6 shadow" onSubmit={handleSubmit}>
         <h2 className="text-lg font-semibold">Winkelmandje</h2>

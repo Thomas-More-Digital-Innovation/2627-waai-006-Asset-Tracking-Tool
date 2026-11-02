@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { Navigate, Route, Routes } from 'react-router'
 import Footer from './components/layout/Footer.tsx'
 import Navbar from './components/layout/Navbar.tsx'
 import { adminLinks, defaultLinks } from './components/layout/navLinks.ts'
@@ -29,29 +30,20 @@ function App() {
     return <LoginPage />
   }
 
-  // The root path has no page of its own, so send it to the reserve page
-  if (window.location.pathname === '/') {
-    window.history.replaceState(null, '', '/reserve')
-  }
-
-  const path = window.location.pathname
-  let page = <h1 className="text-2xl font-semibold">Welkom, {user.firstname}</h1>
-  if (path === '/reserve') {
-    page = <ReservePage />
-  } else if (path === '/reservations') {
-    page = <ReservationsPage />
-  } else if (path === '/settings') {
-    page = <SettingsPage />
-  } else if (path === '/manage' && user.is_admin) {
-    page = <ManagePage />
-  } else if (path === '/problems' && user.is_admin) {
-    page = <ProblemsPage />
-  }
-
   return (
     <div className="flex min-h-screen flex-col bg-gray-50 text-gray-900">
       <Navbar links={user.is_admin ? adminLinks : defaultLinks} onLogout={logout} />
-      <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8 sm:px-6">{page}</main>
+      <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8 sm:px-6">
+        <Routes>
+          <Route path="/reserve" element={<ReservePage />} />
+          <Route path="/reservations" element={<ReservationsPage />} />
+          <Route path="/settings" element={<SettingsPage />} />
+          {user.is_admin && <Route path="/manage" element={<ManagePage />} />}
+          {user.is_admin && <Route path="/problems" element={<ProblemsPage />} />}
+          {/* The root, an unknown address or an admin page for a normal user opens the reserve page */}
+          <Route path="*" element={<Navigate to="/reserve" replace />} />
+        </Routes>
+      </main>
       <Footer />
     </div>
   )

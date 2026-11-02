@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react'
+import { useNavigate } from 'react-router'
 import Button from '../../components/ui/Button.tsx'
 import FormMessage from '../../components/ui/FormMessage.tsx'
 import Input from '../../components/ui/Input.tsx'
@@ -36,6 +37,7 @@ type PeriodFormProps = {
 }
 
 function PeriodForm({ initial, reservationId }: PeriodFormProps) {
+  const navigate = useNavigate()
   const [settings, setSettings] = useState<ApplicationSettings | null>(null)
   const [isLoaded, setIsLoaded] = useState(false)
   const [error, setError] = useState('')
@@ -86,9 +88,8 @@ function PeriodForm({ initial, reservationId }: PeriodFormProps) {
     }
 
     // The chosen period goes into the address, so it survives moving between categories
-    window.location.search = new URLSearchParams(
-      reservationId ? { ...period, reservation: String(reservationId) } : period,
-    ).toString()
+    const query = new URLSearchParams(reservationId ? { ...period, reservation: String(reservationId) } : period)
+    navigate(`/reserve?${query}`)
   }
 
   // With a fixed weekday the calendar starts on the first such day and moves in steps of a week,

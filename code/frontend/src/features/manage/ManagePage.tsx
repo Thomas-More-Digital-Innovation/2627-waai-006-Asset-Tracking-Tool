@@ -1,5 +1,5 @@
 import { Download } from 'lucide-react'
-import { useState } from 'react'
+import { useSearchParams } from 'react-router'
 import Button from '../../components/ui/Button.tsx'
 import { useAuth } from '../auth/useAuth.ts'
 import {
@@ -71,20 +71,15 @@ const passwordField: DataField = {
   optionalOnEdit: true,
 }
 
-// The tab from the address, or the first tab when there is none
-function initialTab() {
-  const tab = new URLSearchParams(window.location.search).get('tab')
-  return manageOptions.find((option) => option.value === tab)?.value ?? manageOptions[0].value
-}
-
 function ManagePage() {
   const authMethod = useAuth((state) => state.authMethod)
-  const [selected, setSelected] = useState(initialTab)
+  // The chosen tab lives in the address, so a reload opens the same tab; without one the first tab is open
+  const [params, setParams] = useSearchParams()
+  const tab = params.get('tab')
+  const selected = manageOptions.find((option) => option.value === tab)?.value ?? manageOptions[0].value
 
-  // Keeps the chosen tab in the address, so a reload opens the same tab
   function selectTab(tab: string) {
-    setSelected(tab)
-    window.history.replaceState(null, '', `?tab=${tab}`)
+    setParams({ tab }, { replace: true })
   }
 
   return (

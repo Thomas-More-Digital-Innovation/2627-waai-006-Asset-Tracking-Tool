@@ -1,5 +1,6 @@
 import { AlertTriangle, Check, Plus, Trash2 } from 'lucide-react'
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
+import { Link, useNavigate } from 'react-router'
 import Button from '../../components/ui/Button.tsx'
 import FormMessage from '../../components/ui/FormMessage.tsx'
 import Input from '../../components/ui/Input.tsx'
@@ -26,8 +27,8 @@ function formatEnd(reservation: Reservation) {
   return formatMoment(reservation.end_date, reservation.end_time.slice(0, 5))
 }
 
-// Puts the reservation in the cart and opens it on the reserve page, where everything can be changed
-function editReservation(reservation: Reservation) {
+// Puts the reservation in the cart and returns the address of the reserve page, where everything can be changed
+function editReservation(reservation: Reservation): string {
   const period = {
     start_date: reservation.start_date,
     start_time: reservation.start_time.slice(0, 5),
@@ -37,7 +38,7 @@ function editReservation(reservation: Reservation) {
   const cart = Object.fromEntries(reservation.items.map((item) => [item.item_id, item.count]))
   startEditing(reservation.reservation_id, period, cart, reservation.department_id)
   const query = new URLSearchParams({ ...period, reservation: String(reservation.reservation_id), view: 'cart' })
-  window.location.href = `/reserve?${query}`
+  return `/reserve?${query}`
 }
 
 function isRunning(reservation: Reservation, now: Date) {
@@ -216,6 +217,7 @@ function ReservationCard({
 }: ReservationCardProps) {
   // Admins see who placed the reservation and can also change a running one or confirm its items are given back
   const isAdmin = useUser().is_admin
+  const navigate = useNavigate()
   const total = reservation.items.reduce((sum, item) => sum + item.count, 0)
   const canChange = isAdmin || !isRunning
 
@@ -252,7 +254,7 @@ function ReservationCard({
           variant="secondary"
           disabled={!canChange}
           title={canChange ? undefined : 'Een lopende reservering kan niet gewijzigd worden'}
-          onClick={() => editReservation(reservation)}
+          onClick={() => navigate(editReservation(reservation))}
         >
           Wijzigen
         </Button>
@@ -476,9 +478,9 @@ function ReservationsPage() {
       {reservations && !isAdmin && reservations.length === 0 && (
         <p className="text-gray-600">
           Je hebt geen lopende of komende reserveringen.{' '}
-          <a className="text-primary hover:underline" href="/reserve">
+          <Link className="text-primary hover:underline" to="/reserve">
             Nieuwe reservering maken
-          </a>
+          </Link>
         </p>
       )}
 
