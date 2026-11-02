@@ -1,9 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import Footer from './components/layout/Footer.tsx'
 import Navbar from './components/layout/Navbar.tsx'
 import { adminLinks, defaultLinks } from './components/layout/navLinks.ts'
-import { fetchAuthMethod, fetchCurrentUser, logout, type AuthMethod, type User } from './features/auth/api.ts'
 import LoginPage from './features/auth/LoginPage.tsx'
+import { useAuth } from './features/auth/useAuth.ts'
 import ManagePage from './features/manage/ManagePage.tsx'
 import ProblemsPage from './features/problems/ProblemsPage.tsx'
 import ReservationsPage from './features/reservations/ReservationsPage.tsx'
@@ -11,28 +11,22 @@ import ReservePage from './features/reserve/ReservePage.tsx'
 import SettingsPage from './features/settings/SettingsPage.tsx'
 
 function App() {
-  const [user, setUser] = useState<User | null>(null)
-  const [authMethod, setAuthMethod] = useState<AuthMethod>('email')
-  const [isLoading, setIsLoading] = useState(true)
+  const user = useAuth((state) => state.user)
+  const isLoading = useAuth((state) => state.isLoading)
+  const load = useAuth((state) => state.load)
+  const logout = useAuth((state) => state.logout)
 
   useEffect(() => {
-    Promise.all([
-      fetchCurrentUser().then(setUser, () => setUser(null)),
-      fetchAuthMethod().then(setAuthMethod, () => setAuthMethod('email')),
-    ]).finally(() => setIsLoading(false))
-  }, [])
+    load()
+  }, [load])
 
-  async function handleLogout() {
-    await logout()
-    setUser(null)
-  }
-
+  // Nothing is shown until it is known whether someone is logged in, so the login page does not flash
   if (isLoading) {
     return null
   }
 
   if (!user) {
-    return <LoginPage authMethod={authMethod} onLogin={setUser} />
+    return <LoginPage />
   }
 
   // The root path has no page of its own, so send it to the reserve page
@@ -45,18 +39,18 @@ function App() {
   if (path === '/reserve') {
     page = <ReservePage />
   } else if (path === '/reservations') {
-    page = <ReservationsPage isAdmin={user.is_admin} />
+    page = <ReservationsPage />
   } else if (path === '/settings') {
-    page = <SettingsPage user={user} authMethod={authMethod} onUserChange={setUser} />
+    page = <SettingsPage />
   } else if (path === '/manage' && user.is_admin) {
-    page = <ManagePage authMethod={authMethod} />
+    page = <ManagePage />
   } else if (path === '/problems' && user.is_admin) {
     page = <ProblemsPage />
   }
 
   return (
     <div className="flex min-h-screen flex-col bg-gray-50 text-gray-900">
-      <Navbar links={user.is_admin ? adminLinks : defaultLinks} onLogout={handleLogout} />
+      <Navbar links={user.is_admin ? adminLinks : defaultLinks} onLogout={logout} />
       <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8 sm:px-6">{page}</main>
       <Footer />
     </div>

@@ -2,19 +2,13 @@ import { useState, type FormEvent } from 'react'
 import Button from '../../components/ui/Button.tsx'
 import FormMessage, { type Message } from '../../components/ui/FormMessage.tsx'
 import Input from '../../components/ui/Input.tsx'
-import { changePassword, updateProfile, type AuthMethod, type User } from '../auth/api.ts'
+import { changePassword, updateProfile } from '../auth/api.ts'
+import { useAuth, useUser } from '../auth/useAuth.ts'
 import SummerTimeForm from './SummerTimeForm.tsx'
 
-type ProfileFormProps = {
-  user: User
-  onUserChange: (user: User) => void
-}
-
-type SettingsPageProps = ProfileFormProps & {
-  authMethod: AuthMethod
-}
-
-function ProfileForm({ user, onUserChange }: ProfileFormProps) {
+function ProfileForm() {
+  const user = useUser()
+  const setUser = useAuth((state) => state.setUser)
   const [message, setMessage] = useState<Message | null>(null)
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -23,7 +17,7 @@ function ProfileForm({ user, onUserChange }: ProfileFormProps) {
     const form = new FormData(event.currentTarget)
 
     try {
-      onUserChange(await updateProfile(String(form.get('firstname')).trim(), String(form.get('lastname')).trim()))
+      setUser(await updateProfile(String(form.get('firstname')).trim(), String(form.get('lastname')).trim()))
       setMessage({ text: 'Je gegevens zijn opgeslagen.', isError: false })
     } catch {
       setMessage({ text: 'Opslaan is mislukt.', isError: true })
@@ -89,11 +83,14 @@ function PasswordForm() {
   )
 }
 
-function SettingsPage({ user, authMethod, onUserChange }: SettingsPageProps) {
+function SettingsPage() {
+  const user = useUser()
+  const authMethod = useAuth((state) => state.authMethod)
+
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-col gap-6">
       <h1 className="text-2xl font-semibold">Instellingen</h1>
-      <ProfileForm user={user} onUserChange={onUserChange} />
+      <ProfileForm />
       {/* With SSO the password belongs to the Microsoft account */}
       {authMethod === 'email' && <PasswordForm />}
       {user.is_admin && <SummerTimeForm />}

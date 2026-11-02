@@ -5,6 +5,7 @@ import FormMessage from '../../components/ui/FormMessage.tsx'
 import Input from '../../components/ui/Input.tsx'
 import Modal from '../../components/ui/Modal.tsx'
 import SearchBar from '../../components/ui/SearchBar.tsx'
+import { useUser } from '../auth/useAuth.ts'
 import { startEditing } from '../reserve/cart.ts'
 import { formatMoment } from '../reserve/period.ts'
 import {
@@ -200,8 +201,6 @@ type ReservationCardProps = {
   reservation: Reservation
   isRunning: boolean
   isOverdue: boolean
-  // Admins see who placed the reservation and can also change a running one or confirm its items are given back
-  isAdmin: boolean
   onShowItems: () => void
   onCancel: () => void
   onReturn: () => void
@@ -211,11 +210,12 @@ function ReservationCard({
   reservation,
   isRunning,
   isOverdue,
-  isAdmin,
   onShowItems,
   onCancel,
   onReturn,
 }: ReservationCardProps) {
+  // Admins see who placed the reservation and can also change a running one or confirm its items are given back
+  const isAdmin = useUser().is_admin
   const total = reservation.items.reduce((sum, item) => sum + item.count, 0)
   const canChange = isAdmin || !isRunning
 
@@ -306,11 +306,8 @@ function ScrollingList({ children }: { children: ReactNode[] }) {
   )
 }
 
-type ReservationsPageProps = {
-  isAdmin: boolean
-}
-
-function ReservationsPage({ isAdmin }: ReservationsPageProps) {
+function ReservationsPage() {
+  const isAdmin = useUser().is_admin
   const [reservations, setReservations] = useState<Reservation[] | null>(null)
   const [hasError, setHasError] = useState(false)
   const [selected, setSelected] = useState<Reservation | null>(null)
@@ -381,7 +378,6 @@ function ReservationsPage({ isAdmin }: ReservationsPageProps) {
         reservation={reservation}
         isRunning={isRunning(reservation, now)}
         isOverdue={isOverdue(reservation, now)}
-        isAdmin={isAdmin}
         onShowItems={() => setSelected(reservation)}
         onCancel={() => setCancelling(reservation)}
         onReturn={() => setReturning(reservation)}

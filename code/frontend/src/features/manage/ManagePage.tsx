@@ -1,7 +1,7 @@
 import { Download } from 'lucide-react'
 import { useState } from 'react'
 import Button from '../../components/ui/Button.tsx'
-import type { AuthMethod } from '../auth/api.ts'
+import { useAuth } from '../auth/useAuth.ts'
 import {
   activateItem,
   activateUser,
@@ -77,11 +77,8 @@ function initialTab() {
   return manageOptions.find((option) => option.value === tab)?.value ?? manageOptions[0].value
 }
 
-type ManagePageProps = {
-  authMethod: AuthMethod
-}
-
-function ManagePage({ authMethod }: ManagePageProps) {
+function ManagePage() {
+  const authMethod = useAuth((state) => state.authMethod)
   const [selected, setSelected] = useState(initialTab)
 
   // Keeps the chosen tab in the address, so a reload opens the same tab

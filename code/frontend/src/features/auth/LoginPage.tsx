@@ -3,12 +3,8 @@ import { FaMicrosoft } from 'react-icons/fa'
 import Button from '../../components/ui/Button.tsx'
 import Input from '../../components/ui/Input.tsx'
 import Logo from '../../components/ui/Logo.tsx'
-import { login, type AuthMethod, type User } from './api.ts'
-
-type LoginPageProps = {
-  authMethod: AuthMethod
-  onLogin: (user: User) => void
-}
+import { login } from './api.ts'
+import { useAuth } from './useAuth.ts'
 
 const ssoErrors: Record<string, string> = {
   sso_failed: 'Inloggen met Microsoft is mislukt. Probeer het opnieuw.',
@@ -25,7 +21,9 @@ function initialError() {
   return code ? (ssoErrors[code] ?? ssoErrors.sso_failed) : ''
 }
 
-function LoginPage({ authMethod, onLogin }: LoginPageProps) {
+function LoginPage() {
+  const authMethod = useAuth((state) => state.authMethod)
+  const setUser = useAuth((state) => state.setUser)
   const [error, setError] = useState(initialError)
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -34,7 +32,7 @@ function LoginPage({ authMethod, onLogin }: LoginPageProps) {
     const form = new FormData(event.currentTarget)
 
     try {
-      onLogin(await login(String(form.get('email')), String(form.get('password'))))
+      setUser(await login(String(form.get('email')), String(form.get('password'))))
     } catch {
       setError('E-mailadres of wachtwoord is onjuist.')
     }
