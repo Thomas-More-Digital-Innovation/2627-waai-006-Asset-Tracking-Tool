@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { FaMicrosoft } from 'react-icons/fa'
+import { useNavigate } from 'react-router'
 import Button from '../../components/ui/Button.tsx'
 import Input from '../../components/ui/Input.tsx'
 import Logo from '../../components/ui/Logo.tsx'
@@ -25,6 +26,7 @@ function LoginPage() {
   const authMethod = useAuth((state) => state.authMethod)
   const setUser = useAuth((state) => state.setUser)
   const [error, setError] = useState(initialError)
+  const navigate = useNavigate()
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     // Prevents the browser from reloading the page when the form is submitted
@@ -33,6 +35,8 @@ function LoginPage() {
 
     try {
       setUser(await login(String(form.get('email')), String(form.get('password'))))
+      // Every login starts on the reserve page, not on the page that was open before logging out
+      navigate('/reserve', { replace: true })
     } catch {
       setError('E-mailadres of wachtwoord is onjuist.')
     }
