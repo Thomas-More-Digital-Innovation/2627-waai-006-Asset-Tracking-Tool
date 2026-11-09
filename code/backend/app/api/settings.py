@@ -1,8 +1,6 @@
 from datetime import time
-from typing import Self
-
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel, ConfigDict, model_validator
+from pydantic import BaseModel, ConfigDict
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -26,13 +24,10 @@ class ApplicationSettingSchema(BaseModel):
     summer_start_time: time | None = None
     summer_end_time: time | None = None
     summer_start_date_of_week: int | None = None
+    # The start and end time are not compared: a reservation can run over several days,
+    # for example from Friday 16:00 to Monday 09:00, so an end time before the start time is valid.
+    # Each reservation itself is still checked to end after it starts.
     summer_end_date_of_week: int | None = None
-
-    @model_validator(mode="after")
-    def check_time_order(self) -> Self:
-        if self.summer_start_time and self.summer_end_time and self.summer_start_time >= self.summer_end_time:
-            raise ValueError("De eindtijd moet na de starttijd liggen")
-        return self
 
 
 def get_application_setting(db: Session) -> ApplicationSetting:

@@ -37,13 +37,7 @@ function SummerTimeForm() {
     // Prevents the browser from reloading the page when the form is submitted
     event.preventDefault()
 
-    const startTime = current.summer_start_time?.slice(0, 5) ?? ''
-    const endTime = current.summer_end_time?.slice(0, 5) ?? ''
-    if (startTime && endTime && startTime >= endTime) {
-      setMessage({ text: 'De eindtijd moet na de starttijd liggen.', isError: true })
-      return
-    }
-
+    // The end time may be before the start time, because a reservation can run over several days
     try {
       setSettings(await updateSettings(current))
       setMessage({ text: 'De zomerregeling is opgeslagen.', isError: false })
