@@ -18,7 +18,7 @@ MAIL_SENDER = os.environ.get("MAIL_SENDER", "").strip()
 REMINDER_DELAY = timedelta(hours=float(os.environ.get("REMINDER_AFTER_HOURS") or 4))
 
 
-def send_mail(to: str, subject: str, body: str) -> None:
+def send_mail(to: str, subject: str, body: str, cc: list[str]) -> None:
     """Sends a mail through Microsoft Graph, which needs the application permission Mail.Send."""
     token = client().acquire_token_for_client(scopes=["https://graph.microsoft.com/.default"])
     if "access_token" not in token:
@@ -31,6 +31,7 @@ def send_mail(to: str, subject: str, body: str) -> None:
                 "subject": subject,
                 "body": {"contentType": "Text", "content": body},
                 "toRecipients": [{"emailAddress": {"address": to}}],
+                "ccRecipients": [{"emailAddress": {"address": address}} for address in cc],
             }
         },
         timeout=30,
@@ -58,7 +59,9 @@ def send_reminders(since: datetime, until: datetime) -> None:
                 f"Wil je ze zo snel mogelijk terugbrengen?\n\n{APP_URL}\n"
             )
             try:
-                send_mail(reservation.user.email, "Herinnering: spullen terugbrengen", body)
+                # The department of the reservation gets a copy
+                cc = [reservation.department.mail] if reservation.department else []
+                send_mail(reservation.user.email, "Herinnering: spullen terugbrengen", body, cc)
             except Exception as exception:
                 logger.warning("Reminder for reservation %s not sent: %s", reservation.reservation_id, exception)
 
