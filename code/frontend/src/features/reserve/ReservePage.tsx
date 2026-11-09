@@ -142,6 +142,7 @@ function Availability({ period, categoryId, showCart, reservationId }: Availabil
             <Tile
               title={item.name}
               subtitle={`${item.available} beschikbaar`}
+              description={item.detail}
               imageUrl={item.photo ? `/api/items/photos/${item.photo}` : undefined}
             >
               {cart[item.item_id] ? (

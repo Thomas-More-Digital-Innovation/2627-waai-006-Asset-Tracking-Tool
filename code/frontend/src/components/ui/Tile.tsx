@@ -4,6 +4,7 @@ import { Link } from 'react-router'
 type TileProps = {
   title: string
   subtitle?: string
+  description?: string | null
   // Shown across the top of the tile
   imageUrl?: string
   // Together these add a button at the bottom of the tile that opens the address
@@ -13,7 +14,7 @@ type TileProps = {
   children?: ReactNode
 }
 
-function Tile({ title, subtitle, imageUrl, actionLabel, href, children }: TileProps) {
+function Tile({ title, subtitle, description, imageUrl, actionLabel, href, children }: TileProps) {
   return (
     <div className="flex h-full flex-col overflow-hidden rounded-xl bg-white shadow">
       {imageUrl && <img className="aspect-video w-full object-cover" src={imageUrl} alt="" />}
@@ -22,6 +23,9 @@ function Tile({ title, subtitle, imageUrl, actionLabel, href, children }: TilePr
         <div className="min-w-0 flex-1">
           <p className="font-semibold break-words text-gray-900">{title}</p>
           {subtitle && <p className="text-sm text-gray-600">{subtitle}</p>}
+          {description?.trim() && (
+            <p className="mt-2 text-sm break-words whitespace-pre-line text-gray-700">{description}</p>
+          )}
         </div>
 
         {actionLabel && href && (
