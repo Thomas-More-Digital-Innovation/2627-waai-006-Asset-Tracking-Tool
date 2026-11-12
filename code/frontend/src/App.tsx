@@ -3,6 +3,7 @@ import { Navigate, Route, Routes } from 'react-router'
 import Footer from './components/layout/Footer.tsx'
 import Navbar from './components/layout/Navbar.tsx'
 import { adminLinks, defaultLinks } from './components/layout/navLinks.ts'
+import CatalogPage from './features/catalog/CatalogPage.tsx'
 import LoginPage from './features/auth/LoginPage.tsx'
 import { useAuth } from './features/auth/useAuth.ts'
 import ManagePage from './features/manage/ManagePage.tsx'
@@ -36,6 +37,7 @@ function App() {
       <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8 sm:px-6">
         <Routes>
           <Route path="/reserve" element={<ReservePage />} />
+          <Route path="/catalog" element={<CatalogPage />} />
           <Route path="/reservations" element={<ReservationsPage />} />
           <Route path="/settings" element={<SettingsPage />} />
           {user.is_admin && <Route path="/manage" element={<ManagePage />} />}

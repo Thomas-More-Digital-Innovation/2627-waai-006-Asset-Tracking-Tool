@@ -95,6 +95,12 @@ def export_items(db: DbSession):
     )
 
 
+@router.get("/catalog", response_model=list[ItemResponse])
+def list_catalog_items(current_user: CurrentUser, db: DbSession):
+    # Every user may look through all active items, without a period
+    return db.scalars(select(Item).where(Item.is_active).order_by(Item.name)).all()
+
+
 @router.get("/available", response_model=list[ItemAvailability])
 def list_available_items(
     current_user: CurrentUser,
