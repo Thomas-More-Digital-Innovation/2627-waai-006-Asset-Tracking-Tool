@@ -5,6 +5,7 @@ Webapplicatie (WaaiTrack) waarmee medewerkers van de Waaiburg materiaal kunnen r
 ## Werking
 
 - **Reserveren** – kies een periode en reserveer beschikbaar materiaal.
+- **Catalogus** – bekijk alle materialen en categoriën die er zijn.
 - **Reserveringen** – bekijk, wijzig en annuleer reserveringen. Beheerders zien alles en registreren wanneer materiaal terug is, eventueel met gemelde defecten.
 - **Problemen** – beheerders zien welk materiaal defect is (telt niet mee als beschikbaar) en markeren het als opgelost.
 - **Beheren** – beheerders beheren materiaal, categorieën, afdelingen en gebruikers, en kunnen een back-up downloaden of terugzetten.
