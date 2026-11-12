@@ -144,6 +144,7 @@ function Availability({ period, categoryId, showCart, reservationId }: Availabil
               subtitle={`${item.available} beschikbaar`}
               description={item.detail}
               imageUrl={item.photo ? `/api/items/photos/${item.photo}` : undefined}
+              showImage
             >
               {cart[item.item_id] ? (
                 <QuantityStepper

@@ -1,3 +1,4 @@
+import { Package } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { Link } from 'react-router'
 
@@ -7,6 +8,8 @@ type TileProps = {
   description?: string | null
   // Shown across the top of the tile
   imageUrl?: string
+  // Keeps the image area with a placeholder icon when there is no image, so tiles in a row line up
+  showImage?: boolean
   // Together these add a button at the bottom of the tile that opens the address
   actionLabel?: string
   href?: string
@@ -14,10 +17,18 @@ type TileProps = {
   children?: ReactNode
 }
 
-function Tile({ title, subtitle, description, imageUrl, actionLabel, href, children }: TileProps) {
+function Tile({ title, subtitle, description, imageUrl, showImage, actionLabel, href, children }: TileProps) {
   return (
     <div className="flex h-full flex-col overflow-hidden rounded-xl bg-white shadow">
-      {imageUrl && <img className="aspect-video w-full object-cover" src={imageUrl} alt="" />}
+      {imageUrl ? (
+        <img className="aspect-video w-full object-cover" src={imageUrl} alt="" />
+      ) : (
+        showImage && (
+          <div className="flex aspect-video w-full items-center justify-center bg-gray-100 text-gray-400">
+            <Package className="size-10" aria-hidden="true" />
+          </div>
+        )
+      )}
 
       <div className="flex flex-1 flex-col gap-3 p-5">
         <div className="min-w-0 flex-1">

@@ -117,6 +117,7 @@ function CatalogPage() {
                     subtitle={`${item.count} in totaal`}
                     description={item.detail}
                     imageUrl={item.photo ? `/api/items/photos/${item.photo}` : undefined}
+                    showImage
                   />
                 </li>
               ))}
