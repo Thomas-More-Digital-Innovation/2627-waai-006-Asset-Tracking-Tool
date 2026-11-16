@@ -16,12 +16,22 @@ Webapplicatie (WaaiTrack) waarmee medewerkers van de Waaiburg materiaal kunnen r
 
 ```
 code/
-├── backend/                       FastAPI + SQLAlchemy (api/, models/, seeders/)
-├── frontend/                      React + TypeScript + Vite + Tailwind (components/, features/)
-├── docker-compose.yml             lokaal / development
+├── backend/
+│   └── app/
+│       ├── api/                   endpoints
+│       ├── models/                databasetabellen
+│       ├── seeders/               startdata
+│       └── main.py                startpunt
+├── frontend/
+│   └── src/
+│       ├── components/            herbruikbare componenten
+│       ├── features/              pagina's
+│       ├── lib/                   helpers
+│       └── App.tsx                routes
+├── docker-compose.yml             development
 ├── docker-compose-production.yml  productie
 └── .env.example
-documents/                         Projectdocumentatie (o.a. ERD)
+documents/                         projectdocumentatie
 ```
 
 De database-tabellen en het beheerdersaccount worden automatisch aangemaakt bij het opstarten van de backend.
