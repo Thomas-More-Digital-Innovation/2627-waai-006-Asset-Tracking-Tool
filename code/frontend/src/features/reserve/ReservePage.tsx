@@ -73,14 +73,18 @@ function Availability({ period, categoryId, showCart, reservationId }: Availabil
     return renderHeader()
   }
 
+  // Only items that still have a free piece can be picked, fully taken items are only kept for the cart
+  const bookable = items.filter((item) => item.available > 0)
+
   function itemsIn(id: number) {
-    return items.filter((item) => item.category_id === id)
+    return bookable.filter((item) => item.category_id === id)
   }
 
-  // Leaves out items that are no longer available and never keeps more than is free
+  // The cart keeps what was chosen, also when less is free now: the cart shows how many are still possible
+  // so the visitor decides what to change. Items that no longer exist at all are left out.
   const cart: Cart = {}
   for (const item of items) {
-    const count = Math.min(storedCart[item.item_id] ?? 0, item.available)
+    const count = storedCart[item.item_id] ?? 0
     if (count > 0) {
       cart[item.item_id] = count
     }
@@ -227,7 +231,7 @@ function Availability({ period, categoryId, showCart, reservationId }: Availabil
   // While searching, matching categories and matching items from every category are shown together
   if (searchText) {
     const foundCategories = availableCategories.filter((candidate) => candidate.name.toLowerCase().includes(searchText))
-    const foundItems = items.filter(matchesSearch)
+    const foundItems = bookable.filter(matchesSearch)
     return (
       <section className="flex flex-col gap-4">
         {header}

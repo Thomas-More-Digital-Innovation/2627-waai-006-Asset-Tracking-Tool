@@ -6,13 +6,13 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Response, UploadFile, status
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from ..availability import broken_per_item, reserved_per_item
 from ..dependencies import CurrentUser, DbSession, get_admin_user
 from ..images import delete_image, image_path, save_image
-from ..models import Category, Item
+from ..models import Category, Item, ReservationItem
 from .reservations import get_accessible_reservation
 
 router = APIRouter(prefix="/items", tags=["items"])
@@ -122,12 +122,20 @@ def list_available_items(
     reserved = reserved_per_item(db, start, end, reservation_id)
     # Pieces with an open problem cannot be booked until the problem is solved
     broken = broken_per_item(db)
-    items = db.scalars(select(Item).where(Item.is_active).order_by(Item.name)).all()
+    # Items that are fully taken are returned too, with 0 available, so a cart that holds them can show
+    # how many are still possible instead of losing them. The items of the reservation that is being
+    # changed are always returned, also when they have been removed since, so they stay visible in its cart.
+    query = select(Item).order_by(Item.name)
+    if reservation_id is not None:
+        in_reservation = select(ReservationItem.item_id).where(ReservationItem.reservation_id == reservation_id)
+        query = query.where(or_(Item.is_active, Item.item_id.in_(in_reservation)))
+    else:
+        query = query.where(Item.is_active)
     result = []
-    for item in items:
-        available = item.count - broken.get(item.item_id, 0) - reserved.get(item.item_id, 0)
-        if available > 0:
-            result.append(ItemAvailability(**ItemResponse.model_validate(item).model_dump(), available=available))
+    for item in db.scalars(query).all():
+        # A removed item cannot be booked anymore
+        available = item.count - broken.get(item.item_id, 0) - reserved.get(item.item_id, 0) if item.is_active else 0
+        result.append(ItemAvailability(**ItemResponse.model_validate(item).model_dump(), available=max(available, 0)))
     return result
 
 

@@ -44,6 +44,8 @@ function CartView({ period, items, cart, reservationId, onChange, onReserved, ba
   }, [])
 
   const lines = items.filter((item) => cart[item.item_id] > 0)
+  // Lines that ask for more than is free now, those have to be changed before saving
+  const hasTooMany = lines.some((item) => cart[item.item_id] > item.available)
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     // Prevents the browser from reloading the page when the form is submitted
@@ -92,7 +94,16 @@ function CartView({ period, items, cart, reservationId, onChange, onReserved, ba
             <ul className="divide-y divide-gray-200 border-y border-gray-200">
               {lines.map((item) => (
                 <li className="flex flex-wrap items-center gap-3 py-3" key={item.item_id}>
-                  <p className="min-w-32 flex-1 font-medium break-words">{item.name}</p>
+                  <div className="min-w-32 flex-1">
+                    <p className="font-medium break-words">{item.name}</p>
+                    {cart[item.item_id] > item.available && (
+                      <p className="text-sm font-medium text-red-700">
+                        {item.available > 0
+                          ? `Nog maximaal ${item.available} mogelijk op dit moment`
+                          : 'Niet meer beschikbaar op dit moment'}
+                      </p>
+                    )}
+                  </div>
                   <div className="ml-auto flex items-center gap-1">
                     <QuantityStepper
                       value={cart[item.item_id]}
@@ -124,9 +135,17 @@ function CartView({ period, items, cart, reservationId, onChange, onReserved, ba
               required
             />
 
+            {hasTooMany && (
+              <FormMessage
+                message={{
+                  text: 'Van sommige items is nu minder beschikbaar. Pas de aantallen aan voordat je opslaat.',
+                  isError: true,
+                }}
+              />
+            )}
             {error && <FormMessage message={{ text: error, isError: true }} />}
 
-            <Button className="sm:self-start" type="submit">
+            <Button className="sm:self-start" type="submit" disabled={hasTooMany}>
               {reservationId ? 'Wijzigingen opslaan' : 'Reserveren'}
             </Button>
           </>
