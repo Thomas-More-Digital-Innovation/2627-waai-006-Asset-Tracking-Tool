@@ -1,9 +1,18 @@
 import { useEffect, useState } from 'react'
 import Button from '../../components/ui/Button.tsx'
 import FormMessage from '../../components/ui/FormMessage.tsx'
+import Modal from '../../components/ui/Modal.tsx'
 import SearchBar from '../../components/ui/SearchBar.tsx'
 import { formatMoment } from '../reserve/period.ts'
-import { fetchProblems, resolveProblem, type ItemWithProblems } from './api.ts'
+import {
+  checkWriteOff,
+  fetchProblems,
+  resolveProblem,
+  writeOffProblem,
+  type ItemWithProblems,
+  type ProblemNote,
+  type WriteOffShortage,
+} from './api.ts'
 
 // Matches on the item name, article number and the text of its problems
 function matchesSearch(item: ItemWithProblems, search: string) {
@@ -24,11 +33,23 @@ function StatTile({ label, value }: { label: string; value: number }) {
   )
 }
 
+// What the admin wants to do with a problem, asked for confirmation first
+type PendingAction = {
+  kind: 'resolve' | 'writeOff'
+  item: ItemWithProblems
+  problem: ProblemNote
+}
+
 function ProblemsPage() {
   const [items, setItems] = useState<ItemWithProblems[] | null>(null)
   const [hasError, setHasError] = useState(false)
   const [resolveError, setResolveError] = useState('')
   const [search, setSearch] = useState('')
+  const [pending, setPending] = useState<PendingAction | null>(null)
+  const [isBusy, setIsBusy] = useState(false)
+  // The reservations that block removing a piece, null while they are still being checked
+  const [shortages, setShortages] = useState<WriteOffShortage[] | null>(null)
+  const [checkError, setCheckError] = useState('')
 
   // Loads the problems once, when the page first appears
   useEffect(() => {
@@ -37,9 +58,27 @@ function ProblemsPage() {
       .catch(() => setHasError(true))
   }, [])
 
-  async function handleResolve(problemId: number) {
+  function openResolve(item: ItemWithProblems, problem: ProblemNote) {
+    setPending({ kind: 'resolve', item, problem })
+  }
+
+  // Before a piece can leave the stock, the reservations that would get too few are looked up
+  async function openWriteOff(item: ItemWithProblems, problem: ProblemNote) {
+    setPending({ kind: 'writeOff', item, problem })
+    setShortages(null)
+    setCheckError('')
     try {
-      await resolveProblem(problemId)
+      setShortages(await checkWriteOff(problem.item_problem_id))
+    } catch (caught) {
+      setCheckError(caught instanceof Error ? caught.message : 'Er ging iets mis.')
+    }
+  }
+
+  async function handleConfirm(action: PendingAction) {
+    const problemId = action.problem.item_problem_id
+    setIsBusy(true)
+    try {
+      await (action.kind === 'resolve' ? resolveProblem(problemId) : writeOffProblem(problemId))
       setResolveError('')
       // An item without problems left no longer belongs on the page
       setItems(
@@ -53,6 +92,9 @@ function ProblemsPage() {
       )
     } catch (caught) {
       setResolveError(caught instanceof Error ? caught.message : 'Er ging iets mis.')
+    } finally {
+      setIsBusy(false)
+      setPending(null)
     }
   }
 
@@ -118,9 +160,17 @@ function ProblemsPage() {
                         {item.problems.map((problem) => (
                           <li className="flex items-center justify-between gap-4 py-3" key={problem.item_problem_id}>
                             <span className="break-words whitespace-pre-line">{problem.note}</span>
-                            <Button variant="secondary" onClick={() => handleResolve(problem.item_problem_id)}>
-                              Opgelost
-                            </Button>
+                            <div className="flex shrink-0 flex-col gap-2 sm:flex-row">
+                              <Button
+                                variant="secondary"
+                                onClick={() => openResolve(item, problem)}
+                              >
+                                Opgelost
+                              </Button>
+                              <Button variant="danger" onClick={() => openWriteOff(item, problem)}>
+                                Verwijderen
+                              </Button>
+                            </div>
                           </li>
                         ))}
                       </ul>
@@ -131,6 +181,75 @@ function ProblemsPage() {
             </section>
           )}
         </>
+      )}
+
+      {pending && (
+        <Modal
+          title={pending.kind === 'resolve' ? 'Probleem opgelost' : 'Kapot item verwijderen'}
+          onClose={() => setPending(null)}
+        >
+          <div className="flex flex-col gap-5">
+            <p className="break-words">
+              {pending.kind === 'resolve' ? (
+                <>
+                  Is het probleem bij <strong>{pending.item.name}</strong> opgelost? Het stuk kan daarna weer
+                  gereserveerd worden.
+                </>
+              ) : (
+                <>
+                  Is dit stuk van <strong>{pending.item.name}</strong> kapot? Het probleem wordt verwijderd en de
+                  voorraad gaat met 1 omlaag. Is er daarna geen stuk meer over, dan wordt het item verwijderd.
+                </>
+              )}
+            </p>
+            <p className="rounded-md bg-gray-100 p-3 text-sm break-words whitespace-pre-line">{pending.problem.note}</p>
+
+            {pending.kind === 'writeOff' && (
+              <>
+                {checkError && <FormMessage message={{ text: checkError, isError: true }} />}
+                {!checkError && shortages === null && <p className="text-sm text-gray-600">Reserveringen controleren…</p>}
+                {shortages && shortages.length > 0 && (
+                  <div className="flex flex-col gap-3">
+                    <p className="text-sm font-medium text-red-700">
+                      Dit stuk kan nog niet uit de voorraad. Deze reserveringen hebben dan te weinig, pas ze eerst aan:
+                    </p>
+                    <ul className="divide-y divide-gray-200 rounded-md border border-gray-200 text-sm">
+                      {shortages.map((shortage) => (
+                        <li className="flex flex-col gap-1 px-3 py-2" key={shortage.reservation_id}>
+                          <span className="font-medium break-words">
+                            {shortage.department_name ?? 'Geen afdeling'} · {shortage.user_name}
+                          </span>
+                          <span className="text-gray-600">
+                            {formatMoment(shortage.start_date, shortage.start_time.slice(0, 5))} tot{' '}
+                            {formatMoment(shortage.end_date, shortage.end_time.slice(0, 5))}
+                          </span>
+                          <span className="text-red-700">
+                            {shortage.count}× nodig, nog {shortage.available} beschikbaar
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </>
+            )}
+
+            <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+              <Button variant="neutral" onClick={() => setPending(null)}>
+                Annuleren
+              </Button>
+              <Button
+                variant={pending.kind === 'resolve' ? 'secondary' : 'danger'}
+                disabled={
+                  isBusy || (pending.kind === 'writeOff' && (checkError !== '' || !shortages || shortages.length > 0))
+                }
+                onClick={() => handleConfirm(pending)}
+              >
+                {pending.kind === 'resolve' ? 'Opgelost' : 'Uit voorraad halen'}
+              </Button>
+            </div>
+          </div>
+        </Modal>
       )}
     </div>
   )
